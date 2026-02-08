@@ -5,8 +5,8 @@ import sqlite3 as sql
 import hashlib
 
 
-def read_umsatzanzeige_as_list(filename):
-    with open(argv[1], "rb") as file:
+def parse_ing(filename):
+    with open(filename, "rb") as file:
         lines = file.read().decode("ISO-8859-1").split("\n")
 
     iban = lines[2].split(";")[1].replace(" ", "")
@@ -14,6 +14,22 @@ def read_umsatzanzeige_as_list(filename):
     reader = csv.DictReader(lines[13:], delimiter=";")
 
     return list(reader)[::-1], iban
+
+
+def parse_bbb(filename):
+    with open(filename, "r") as file:
+        lines = file.readlines()
+
+    lines[0] = lines[0][1:] \
+        .replace("Buchungstag", "Buchung") \
+        .replace("Valutadatum", "Wertstellungsdatum") \
+        .replace("Name Zahlungsbeteiligter", "Auftraggeber/Empfänger") \
+        .replace("IBAN Auftragskonto", "IBAN") \
+        .replace("Waehrung", "Währung") \
+        .replace("Saldo nach Buchung", "Saldo")
+
+    transactions = list(csv.DictReader(lines, delimiter=";"))[::-1]
+    return transactions, transactions[0]["IBAN"]
 
 
 def to_ct(money_str):
@@ -87,6 +103,14 @@ def insert(transactions):
     filtered_transactions = tuple(
         t for t in transactions if t["Hash"] not in excluded)
 
+    ans = ""
+    while ans != "y" and ans != "yes":
+        ans = input(f"Continue to insert {len(filtered_transactions)}"
+                    f" of {len(transactions)} transactions? (y/n)").lower()
+        if ans == "n" or ans == "no":
+            con.close()
+            return
+
     cur.executemany("""
         insert into Umsaetze values(
             :Hash, :IBAN, :Buchung, :Wertstellungsdatum, :Tagesnummer, :Sender,
@@ -100,9 +124,11 @@ def insert(transactions):
 
 
 def main(argv):
-    transactions, iban = read_umsatzanzeige_as_list(argv[1])
+    transactions, iban = parse_ing(argv[1])
     enrich(transactions, iban)
-    # print(transactions[:2])
+
+    # for line in transactions:
+    #     print(line)
     insert(transactions)
 
 
