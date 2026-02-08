@@ -1,4 +1,4 @@
-from sys import argv
+import argparse
 import csv
 
 import sqlite3 as sql
@@ -106,7 +106,7 @@ def insert(transactions):
     ans = ""
     while ans != "y" and ans != "yes":
         ans = input(f"Continue to insert {len(filtered_transactions)}"
-                    f" of {len(transactions)} transactions? (y/n)").lower()
+                    f" of {len(transactions)} transactions? (y/n)\n").lower()
         if ans == "n" or ans == "no":
             con.close()
             return
@@ -123,8 +123,13 @@ def insert(transactions):
     con.close()
 
 
-def main(argv):
-    transactions, iban = parse_ing(argv[1])
+def main(filename, bank):
+    file_parser = {
+        "bbbank": parse_bbb,
+        "ing": parse_ing
+    }[bank]
+    transactions, iban = file_parser(filename)
+
     enrich(transactions, iban)
 
     # for line in transactions:
@@ -133,4 +138,10 @@ def main(argv):
 
 
 if __name__ == "__main__":
-    main(argv)
+    parser = argparse.ArgumentParser(
+        description=".csv-Export von der Bank in die Datenbank packen")
+    parser.add_argument("Dateiname")
+    parser.add_argument(
+        "-b", "--bank", choices=["bbbank", "ing"], default="ing")
+    args = parser.parse_args()
+    main(args.Dateiname, args.bank)
