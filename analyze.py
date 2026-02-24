@@ -2,7 +2,8 @@ from sys import argv
 import sqlite3 as sql
 from numbers import Number
 
-from plotly.graph_objects import Figure, Sankey
+from plotly.subplots import make_subplots
+from plotly import graph_objects as go
 
 MAPPINGS = {
     "Essen": {
@@ -78,9 +79,6 @@ class SankeyGraph:
     def get_node_labels(self):
         return self.node_names
 
-    # def print_nodes(self):
-    #
-
 
 def select(month, year):
     con = sql.connect("transaktionen.db")
@@ -91,16 +89,6 @@ def select(month, year):
             strftime('%Y', Wertstellungsdatum) = ? and
             strftime('%m', Wertstellungsdatum) = ?;""", (year, month))
     lines = res.fetchall()
-
-    # ein = 0
-    # aus = 0
-    # for line in lines:
-    #     if line[1]:
-    #         ein += line[0]
-    #     else:
-    #         aus += line[0]
-
-    # print(f"{year} {month}: Einnahmen {ein/100}, Ausgaben {aus/100}")
     con.close()
 
     return [dict(t) for t in lines]
@@ -135,7 +123,6 @@ def viz(transactions):
     transactions = [t for t in transactions if not match_any_filter(t)]
 
     einnahmen = [t for t in transactions if t["Einnahme"]]
-    # einnahmen = [t for t in einnahmen if not match_any_filter(t)]
     ausgaben = [t for t in transactions if not t["Einnahme"]]
 
     # sum_ein = sum([t["Betrag"] for t in einnahmen])
@@ -155,28 +142,28 @@ def viz(transactions):
 
     for trans in ausgaben:
         g.add_edge("Girokonto", trans["category"],
-                   -trans["Betrag"] / 100,
+                   abs(trans["Betrag"] / 100),
                    label=f"{trans["Empfaenger"]} - {trans["Verwendungszweck"]}")
 
-    # print(g.get_node_labels())
-    # print(g.get_edge_sources())
-    # print(g.get_edge_targets())
+    fig = make_subplots(rows=2, cols=1)
 
-    fig = Figure(
-        data=Sankey(
+    fig.add_trace(
+        go.Sankey(
             node={"label": g.get_node_labels()},
             link={
                 "source": g.get_edge_sources(), "target": g.get_edge_targets(),
                 "value": g.get_edge_values(), "label": g.get_edge_labels()
             }
-        )
+        ),
+        row=1, col=1
     )
+    fig.add_trace("haha, lol", row=2, col=1)
     fig.update_layout(title_text="Die Nanzen")
     fig.show()
 
 
 def main(argv):
-    trans = select("11", "2025")
+    trans = select("10", "2025")
     viz(trans)
     # for y in [2025, 2026]:
     #     for m in range(1, 13):
