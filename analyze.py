@@ -15,9 +15,15 @@ MAPPINGS = {
     "Auto": {
         "Empfaenger": ["aral", "a.t.u"],
         "Verwendungszweck": ["kfz-steuer"]
-    }
+    },
+    "Gesundheit": {"Empfaenger": ["barmer"]},
 }
 
+FILTER = [
+    [("Sender", "martin lehmann"), ("Verwendungszweck", "studium plus")],
+    [("Sender", "henning lehmann")],
+    [("Empfaenger", "henning lehmann")],
+]
 
 # class SankeyNode:
 #     def __init__(self, label: str, id: int):
@@ -26,10 +32,10 @@ MAPPINGS = {
 
 
 class SankeyEdge:
-    def __init__(self, source: SankeyNode, target: SankeyNode,
+    def __init__(self, source: int, target: int,
                  value: Number, label: str = ""):
-        self.source = source
-        self.target = target
+        self.source_id = source
+        self.target_id = target
         self.value = value
         self.label = label
 
@@ -41,10 +47,9 @@ class SankeyGraph:
         self.edges = []
 
     def add_node(self, name: str):
-        if name in self.node_ids.keys():
-            raise ValueError(f"{name} already has a node!")
-        self.node_ids[name] = len(self.node_names)
-        self.node_names.append(name)
+        if name not in self.node_ids.keys():
+            self.node_ids[name] = len(self.node_names)
+            self.node_names.append(name)
         return self.node_ids[name]
 
     # def find_node(self, name: str):
@@ -52,15 +57,17 @@ class SankeyGraph:
 
     def add_edge(self, source: str, target: str, value: Number,
                  label: str = ""):
+        source_id = self.add_node(source)
+        target_id = self.add_node(target)
         self.edges.append(SankeyEdge(
-            self.find_node(source), self.find_node(target), value, label
+            source_id, target_id, value, label
         ))
 
     def get_edge_sources(self):
-        return [e.source.id for e in self.edges]
+        return [e.source_id for e in self.edges]
 
     def get_edge_targets(self):
-        return [e.target.id for e in self.edges]
+        return [e.target_id for e in self.edges]
 
     def get_edge_values(self):
         return [e.value for e in self.edges]
@@ -69,11 +76,10 @@ class SankeyGraph:
         return [e.label for e in self.edges]
 
     def get_node_labels(self):
-        n_list = list(self.nodes.values())
-        return [n.label for n in sorted(n_list, key=lambda node: node.id)]
+        return self.node_names
 
-    def print_nodes(self):
-        
+    # def print_nodes(self):
+    #
 
 
 def select(month, year):
@@ -100,6 +106,22 @@ def select(month, year):
     return [dict(t) for t in lines]
 
 
+def match_filter(filter, transaction):
+    for k, v in filter:
+        if transaction[k].lower().find(v) == -1:
+            return False
+    return True
+
+
+def match_any_filter(transaction):
+    for f in FILTER:
+        if match_filter(f, transaction):
+            print(f"Filtered: {transaction['Sender']} --{transaction['Betrag'] / 100}-> {
+                  transaction['Empfaenger']} ({transaction['Verwendungszweck']})")
+            return True
+    return False
+
+
 def match_category(transaction):
     for category, map in MAPPINGS.items():
         for field, terms in map.items():
@@ -110,7 +132,10 @@ def match_category(transaction):
 
 
 def viz(transactions):
+    transactions = [t for t in transactions if not match_any_filter(t)]
+
     einnahmen = [t for t in transactions if t["Einnahme"]]
+    # einnahmen = [t for t in einnahmen if not match_any_filter(t)]
     ausgaben = [t for t in transactions if not t["Einnahme"]]
 
     # sum_ein = sum([t["Betrag"] for t in einnahmen])
@@ -121,25 +146,21 @@ def viz(transactions):
         lnk_target["category"] = match_category(lnk_target)
 
     g = SankeyGraph()
-    g.add_node("Girokonto")
-    for cat in MAPPINGS.keys():
-        g.add_node(cat)
-    g.add_node("Rest")
 
     for trans in einnahmen:
-        g.add_node(trans["Sender"])
         g.add_edge(trans["Sender"], "Girokonto",
                    trans["Betrag"] / 100,
                    label=f"{trans["Sender"]} - {trans["Verwendungszweck"]}")
+        # print(f"{trans['Sender']} --{trans['Betrag'] / 100}-> Girokonto ({trans['Verwendungszweck']})")
 
     for trans in ausgaben:
         g.add_edge("Girokonto", trans["category"],
                    -trans["Betrag"] / 100,
                    label=f"{trans["Empfaenger"]} - {trans["Verwendungszweck"]}")
 
-    print(g.get_node_labels())
-    print(g.get_edge_sources())
-    print(g.get_edge_targets())
+    # print(g.get_node_labels())
+    # print(g.get_edge_sources())
+    # print(g.get_edge_targets())
 
     fig = Figure(
         data=Sankey(
@@ -155,7 +176,7 @@ def viz(transactions):
 
 
 def main(argv):
-    trans = select("01", "2026")
+    trans = select("11", "2025")
     viz(trans)
     # for y in [2025, 2026]:
     #     for m in range(1, 13):
