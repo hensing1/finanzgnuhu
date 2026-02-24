@@ -19,10 +19,10 @@ MAPPINGS = {
 }
 
 
-class SankeyNode:
-    def __init__(self, label: str, id: int):
-        self.label = label
-        self.id = id
+# class SankeyNode:
+#     def __init__(self, label: str, id: int):
+#         self.label = label
+#         self.id = id
 
 
 class SankeyEdge:
@@ -36,14 +36,19 @@ class SankeyEdge:
 
 class SankeyGraph:
     def __init__(self):
-        self.nodes = dict()
+        self.node_names = []
+        self.node_ids = dict()
         self.edges = []
 
     def add_node(self, name: str):
-        self.nodes[name] = SankeyNode(name, len(self.nodes))
+        if name in self.node_ids.keys():
+            raise ValueError(f"{name} already has a node!")
+        self.node_ids[name] = len(self.node_names)
+        self.node_names.append(name)
+        return self.node_ids[name]
 
-    def find_node(self, name: str):
-        return self.nodes[name]
+    # def find_node(self, name: str):
+    #     return self.nodes[name]
 
     def add_edge(self, source: str, target: str, value: Number,
                  label: str = ""):
