@@ -89,6 +89,7 @@ def enrich(transactions, iban):
             transactions[i]["Wertstellungsdatum"])
         transactions[i]["IBAN"] = iban
         transactions[i]["Hash"] = sha256(transactions[i])
+        transactions[i]["Kategorie"] = None
 
 
 def insert(transactions):
@@ -106,7 +107,7 @@ def insert(transactions):
     ans = ""
     while ans != "y" and ans != "yes":
         ans = input(f"Continue to insert {len(filtered_transactions)}"
-                    f" of {len(transactions)} transactions? (y/n)\n").lower()
+                    f" of {len(transactions)} transactions? (y/n): ").lower()
         if ans == "n" or ans == "no":
             con.close()
             return
@@ -115,7 +116,7 @@ def insert(transactions):
         insert into Umsaetze values(
             :Hash, :IBAN, :Buchung, :Wertstellungsdatum, :Tagesnummer, :Sender,
             :Empfaenger, :Buchungstext, :Verwendungszweck, :Saldo, :Betrag,
-            :Einnahme
+            :Einnahme, :Kategorie
         );
     """, filtered_transactions)
 
