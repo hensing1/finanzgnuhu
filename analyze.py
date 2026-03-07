@@ -1,14 +1,16 @@
 from sys import argv
 import sqlite3 as sql
 from numbers import Number
+from datetime import datetime
+import locale
 
-from plotly.subplots import make_subplots
+from dash import Dash, html, dcc
 from plotly import graph_objects as go
 
 MAPPINGS = {
     "Essen": {
         "Empfaenger": ["edeka", "rewe", "frittenwerk", "gastro",
-                       "merzenich", "mcdonalds", "mensa", "backwerk", "subway"]
+                       "merzenich", "mcdonalds", "mensa", "backwerk", "subway", "foodamigos"]
     },
     "Sparkonto": {"Empfaenger": ["kleingeld"]},
     "Bargeld": {"Empfaenger": ["bargeld"]},
@@ -17,7 +19,7 @@ MAPPINGS = {
         "Empfaenger": ["aral", "a.t.u"],
         "Verwendungszweck": ["kfz-steuer"]
     },
-    "Gesundheit": {"Empfaenger": ["barmer"]},
+    "Gesundheit": {"Empfaenger": ["barmer", "apotheke"]},
 }
 
 FILTER = [
@@ -25,6 +27,9 @@ FILTER = [
     [("Sender", "henning lehmann")],
     [("Empfaenger", "henning lehmann")],
 ]
+
+MONTHS = ["Nulluar", "Januar", "Februar", "März", "April", "Mai", "Juni",
+          "Juli", "August", "September", "Oktober", "November", "Dezember"]
 
 # class SankeyNode:
 #     def __init__(self, label: str, id: int):
@@ -94,6 +99,28 @@ def select(month, year):
     return [dict(t) for t in lines]
 
 
+def select_all():
+    con = sql.connect("transaktionen.db")
+    con.row_factory = sql.Row
+    cur = con.cursor()
+    res = cur.execute("select * from Umsaetze;")
+    lines = res.fetchall()
+    con.close()
+
+    return [dict(t) for t in lines]
+
+
+def str_to_date(datestr):
+    year, month, day = datestr.split("-")
+    return datetime(int(year), int(month), int(day))
+
+
+def set_dates(transactions):
+    for t in transactions:
+        t['Wertstellungsdatum'] = str_to_date(t['Wertstellungsdatum'])
+        t['Buchung'] = str_to_date(t['Buchung'])
+
+
 def match_filter(filter, transaction):
     for k, v in filter:
         if transaction[k].lower().find(v) == -1:
@@ -119,15 +146,9 @@ def match_category(transaction):
     return "Rest"
 
 
-def viz(transactions):
-    transactions = [t for t in transactions if not match_any_filter(t)]
-
+def make_sankey(transactions):
     einnahmen = [t for t in transactions if t["Einnahme"]]
     ausgaben = [t for t in transactions if not t["Einnahme"]]
-
-    # sum_ein = sum([t["Betrag"] for t in einnahmen])
-    # sum_aus = -sum([t["Betrag"] for t in ausgaben])
-    # diff = sum_ein - sum_aus
 
     for lnk_target in ausgaben:
         lnk_target["category"] = match_category(lnk_target)
@@ -145,29 +166,47 @@ def viz(transactions):
                    abs(trans["Betrag"] / 100),
                    label=f"{trans["Empfaenger"]} - {trans["Verwendungszweck"]}")
 
-    fig = make_subplots(rows=2, cols=1)
-
-    fig.add_trace(
-        go.Sankey(
-            node={"label": g.get_node_labels()},
-            link={
-                "source": g.get_edge_sources(), "target": g.get_edge_targets(),
-                "value": g.get_edge_values(), "label": g.get_edge_labels()
-            }
-        ),
-        row=1, col=1
+    return go.Sankey(
+        node={"label": g.get_node_labels()},
+        link={
+            "source": g.get_edge_sources(), "target": g.get_edge_targets(),
+            "value": g.get_edge_values(), "label": g.get_edge_labels()
+        }
     )
-    fig.add_trace("haha, lol", row=2, col=1)
-    fig.update_layout(title_text="Die Nanzen")
-    fig.show()
+
+
+def ein_aus(transactions):
+    sum_ein = sum([t['Betrag'] for t in transactions if t['Einnahme']])
+    sum_aus = sum([abs(t['Betrag']) for t in transactions if not t['Einnahme']])
+    return sum_ein, sum_aus
 
 
 def main(argv):
-    trans = select("10", "2025")
-    viz(trans)
-    # for y in [2025, 2026]:
-    #     for m in range(1, 13):
-    #         select(f"{m:02}", str(y))
+    locale.setlocale(locale.LC_ALL, '')
+    ts = select_all()
+    set_dates(ts)
+    ts = [t for t in ts if not match_any_filter(t)]
+
+    content = [html.H1("Die Nanzen")]
+
+    for y, m in [(2026, 2), (2026, 1), (2025, 12), (2025, 11), (2025, 10), (2025, 9),
+                 (2025, 8), (2025, 7), (2025, 6), (2025, 5), (2025, 4),
+                 (2025, 3), (2025, 2)]:
+        content.append(html.H2(f"{MONTHS[m]} {y}"))
+        transactions = [t for t in ts
+                        if t['Wertstellungsdatum'].year == y and t['Wertstellungsdatum'].month == m]
+        sankey = make_sankey(transactions)
+        content.append(dcc.Graph(figure=go.Figure(sankey)))
+
+        ein, aus = ein_aus(transactions)
+        content.append(html.P(f"Einnahmen: {locale.format_string('%.2f', ein / 100, grouping=True)}€, "
+                              f"Ausgaben: {locale.format_string('%.2f', aus / 100, grouping=True)}€"))
+
+    app = Dash("Die Nanzen")
+
+    app.layout = html.Div(content)
+
+    app.run(debug=True)
 
 
 if __name__ == "__main__":
