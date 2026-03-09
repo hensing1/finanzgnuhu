@@ -1,8 +1,48 @@
 import db_connector
 
-from dash import Dash, dash_table, html, dcc, callback, Input
+from dash import Dash, dash_table, html, dcc, callback, Input, Output
 from dash.dash_table.Format import Format, Scheme, Group, Symbol
 import locale
+
+
+MAPPINGS = {
+    "Essen": {
+        "Empfaenger": ["edeka", "rewe", "frittenwerk", "gastro", "netto", "king of doner",
+                       "merzenich", "mcdonalds", "mensa", "backwerk", "subway", "foodamigos",
+                       "burgerfaktur", "imbiss", "losteria"],
+        "Verwendungszweck": ["Picnic"]
+    },
+    "Sparkonto": {"Empfaenger": ["kleingeld"]},
+    "Bargeld": {"Empfaenger": ["bargeld"]},
+    "Telefon": {"Empfaenger": ["congstar"]},
+    "Auto": {
+        "Empfaenger": ["aral", "a.t.u"],
+        "Verwendungszweck": ["kfz-steuer"]
+    },
+    "Gesundheit": {"Empfaenger": ["barmer", "apotheke"]},
+    "Abos": {"Verwendungszweck": ["new york times"]}
+}
+
+
+def match_category(transaction):
+    for category, map in MAPPINGS.items():
+        for field, terms in map.items():
+            for term in terms:
+                if transaction[field].lower().find(term) != -1:
+                    return category
+    return ""
+
+
+@callback(
+    Output("trans_table", "data"),
+    [Input("cat_button", "n_clicks"), Input("trans_table", "data")],
+    prevent_initial_call=True
+)
+def categorize(n_clicks, data):
+    global CAT_IDS
+    for t in data:
+        t["Kategorie"] = CAT_IDS[match_category(t)]
+    return data
 
 
 def transform_for_datatable(transactions):
@@ -13,26 +53,8 @@ def transform_for_datatable(transactions):
         t["Betrag"] /= 100
 
 
-@callback(
-    Input("mybutton", "n_clicks")
-)
-def dings():
-    global ts
-    for t in ts:
-        t["Verwendungszweck"] = "ohoho"
-        t["Kategorie"] = 4
-
-
-def main():
-    global ts
-    ts = db_connector.select("02", "2026", [
-        "Hash", "Wertstellungsdatum", "Sender", "Empfaenger", "Verwendungszweck",
-        "Betrag", "Kategorie"
-    ])
-    transform_for_datatable(ts)
-    cats = db_connector.select_categories()
-
-    app = Dash()
+def make_datatable(transactions, cats):
+    transform_for_datatable(transactions)
     money = Format(
         scheme=Scheme.fixed,
         precision=2,
@@ -41,11 +63,12 @@ def main():
         group_delimiter='.',
         decimal_delimiter=',',
         symbol=Symbol.yes,
-        symbol_suffix=u'€')
-    app.layout = html.Div([
-        dcc.Button("Hi!", id="mybutton", n_clicks=0),
-        dash_table.DataTable(
-        ts,
+        symbol_suffix=u'€'
+    )
+
+    return dash_table.DataTable(
+        data=transactions,
+        id="trans_table",
         columns=[
             {"id": "Datum", "name": "Datum"},
             {"id": "Von/An", "name": "Von/An"},
@@ -65,17 +88,19 @@ def main():
             }
         ],
         tooltip_data=[
-            {"Verwendungszweck": {"value": row["Verwendungszweck"]}} for row in ts
+            {"Verwendungszweck": {"value": row["Verwendungszweck"]}} for row in transactions
         ],
         tooltip_duration=None,
         style_header={"backgroundColor": "rgb(210, 210, 210)", "fontSize": "110%"},
         style_data_conditional=[
             {
-                "if": {
-                    "filter_query": "{Betrag} > 0"
-                },
+                "if": {"filter_query": "{Betrag} > 0"},
                 "color": "green"
-            }
+            },
+            {
+                "if": {"row_index": "odd"},
+                "backgroundColor": "rgb(240, 240, 240)"
+            },
         ],
         dropdown={
             "Kategorie": {
@@ -83,13 +108,32 @@ def main():
                     {"label": i[1], "value": i[0]} for i in cats
                 ]
             }
-        }
+        },
         # style_as_list_view=True
-    )])
+    )
+
+
+def main():
+    transactions = db_connector.select("02", "2026", [
+        "Hash", "Wertstellungsdatum", "Sender", "Empfaenger", "Verwendungszweck",
+        "Betrag", "Kategorie"
+    ])
+    cats = db_connector.select_categories()
+    global CAT_IDS
+    CAT_IDS = {}
+    for cat in cats:
+        CAT_IDS[cat[1]] = cat[0]  # maps category names to IDs
+
+    table = make_datatable(transactions, cats)
+
+    app = Dash()
+    app.layout = html.Div([
+        dcc.Button("Categorize!", id="cat_button", n_clicks=0),
+        table
+    ])
     app.run(debug=True)
 
 
 if __name__ == "__main__":
     locale.setlocale(locale.LC_ALL, '')
     main()
-

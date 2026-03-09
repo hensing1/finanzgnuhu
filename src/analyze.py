@@ -5,20 +5,6 @@ import locale
 from dash import Dash, html, dcc
 from plotly import graph_objects as go
 
-MAPPINGS = {
-    "Essen": {
-        "Empfaenger": ["edeka", "rewe", "frittenwerk", "gastro",
-                       "merzenich", "mcdonalds", "mensa", "backwerk", "subway", "foodamigos"]
-    },
-    "Sparkonto": {"Empfaenger": ["kleingeld"]},
-    "Bargeld": {"Empfaenger": ["bargeld"]},
-    "Telefon": {"Empfaenger": ["congstar"]},
-    "Auto": {
-        "Empfaenger": ["aral", "a.t.u"],
-        "Verwendungszweck": ["kfz-steuer"]
-    },
-    "Gesundheit": {"Empfaenger": ["barmer", "apotheke"]},
-}
 
 FILTER = [
     [("Sender", "martin lehmann"), ("Verwendungszweck", "studium plus")],
@@ -99,13 +85,6 @@ def match_any_filter(transaction):
     return False
 
 
-def match_category(transaction):
-    for category, map in MAPPINGS.items():
-        for field, terms in map.items():
-            for term in terms:
-                if transaction[field].lower().find(term) != -1:
-                    return category
-    return "Rest"
 
 
 def make_sankey(transactions):

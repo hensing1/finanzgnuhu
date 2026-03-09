@@ -1,7 +1,7 @@
 from datetime import datetime
 import sqlite3 as sql
 
-SQLITE_FILE = "../transaktionen.db"
+SQLITE_FILE = "transaktionen.db"
 
 
 def str_to_date(datestr):
@@ -91,6 +91,6 @@ def select_all():
 def select_categories():
     with sql.connect(SQLITE_FILE) as con:
         cur = con.cursor()
-        res = cur.execute("select * from Kategorien;")
+        res = cur.execute("select * from Kategorien order by ID;")
         lines = res.fetchall()
     return lines
