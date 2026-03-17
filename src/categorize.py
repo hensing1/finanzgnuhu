@@ -1,8 +1,10 @@
 import db_connector
 
+from enum import Enum
+import locale
+
 from dash import Dash, dash_table, html, dcc, callback, Input, Output
 from dash.dash_table.Format import Format, Scheme, Group, Symbol
-import locale
 
 
 MAPPINGS = {
@@ -24,6 +26,12 @@ MAPPINGS = {
 }
 
 
+class CategoryStatus(Enum):
+    NONE = 0
+    AUTO_CATEGORIZED = 1
+    USER_CATEGORIZED = 2
+
+
 def match_category(transaction):
     for category, map in MAPPINGS.items():
         for field, terms in map.items():
@@ -36,7 +44,7 @@ def match_category(transaction):
 @callback(
     Output("trans_table", "data"),
     [Input("cat_button", "n_clicks"), Input("trans_table", "data")],
-    prevent_initial_call=True
+    prevent_initial_call=False
 )
 def categorize(n_clicks, data):
     global CAT_IDS
@@ -51,6 +59,7 @@ def transform_for_datatable(transactions):
         t["Datum"] = t["Wertstellungsdatum"].strftime("%a, %d. %b")
         t["Von/An"] = t["Sender"] if t["Betrag"] > 0 else t["Empfaenger"]
         t["Betrag"] /= 100
+        t["CatStatus"] = CategoryStatus.NONE.value
 
 
 def make_datatable(transactions, cats):
@@ -109,7 +118,7 @@ def make_datatable(transactions, cats):
                 ]
             }
         },
-        # style_as_list_view=True
+        style_as_list_view=True
     )
 
 
