@@ -67,7 +67,8 @@ def select(month, year, columns=None):
         res = cur.execute(f"""
             select {', '.join(columns)} from Umsaetze where
                 strftime('%Y', Wertstellungsdatum) = ? and
-                strftime('%m', Wertstellungsdatum) = ?;""", (year, month))
+                strftime('%m', Wertstellungsdatum) = ?
+                order by Wertstellungsdatum asc, Tagesnummer asc;""", (year, month))
         lines = res.fetchall()
 
     transactions = [dict(t) for t in lines]
@@ -76,12 +77,11 @@ def select(month, year, columns=None):
 
 
 def select_all():
-    con = sql.connect(SQLITE_FILE)
-    con.row_factory = sql.Row
-    cur = con.cursor()
-    res = cur.execute("select * from Umsaetze;")
-    lines = res.fetchall()
-    con.close()
+    with sql.connect(SQLITE_FILE) as con:
+        con.row_factory = sql.Row
+        cur = con.cursor()
+        res = cur.execute("select * from Umsaetze;")
+        lines = res.fetchall()
 
     transactions = [dict(t) for t in lines]
     convert_sql_types_to_python(transactions)
@@ -94,3 +94,27 @@ def select_categories():
         res = cur.execute("select * from Kategorien order by ID;")
         lines = res.fetchall()
     return lines
+
+
+def select_months():
+    with sql.connect(SQLITE_FILE) as con:
+        cur = con.cursor()
+        res = cur.execute("""
+            select distinct strftime('%Y-%m', Wertstellungsdatum) as Datum
+                from Umsaetze
+                order by Datum asc;
+        """)
+        lines = res.fetchall()
+    # return [(int(year), int(month)) for year, month in [line[0].split('-') for line in lines]]
+    return [line[0] for line in lines]
+
+
+def update_categories(entries):
+    with sql.connect(SQLITE_FILE) as con:
+        cur = con.cursor()
+        cur.executemany("""
+            update Umsaetze
+                set Kategorie = :Kategorie
+                where Hash = :Hash;
+        """, entries)
+        con.commit()

@@ -1,6 +1,5 @@
 import db_connector
 
-from enum import Enum
 import locale
 
 from dash import Dash, dash_table, html, dcc, callback, Input, Output, State
@@ -26,6 +25,10 @@ MAPPINGS = {
 }
 
 
+MONTHS = ["Nulluar", "Januar", "Februar", "März", "April", "Mai", "Juni",
+          "Juli", "August", "September", "Oktober", "November", "Dezember"]
+
+
 def match_category(transaction):
     for category, map in MAPPINGS.items():
         for field, terms in map.items():
@@ -37,9 +40,42 @@ def match_category(transaction):
 
 @callback(
     Output("trans_table", "data"),
+    Output("trans_table", "tooltip_data"),
+    Output("trans_table", "dropdown"),
+    Input("month_dropdown", "value"),
+)
+def select(month_iso):
+    y, m = month_iso.split('-')
+    transactions = db_connector.select(m, y, [
+        "Hash", "Wertstellungsdatum", "Sender", "Empfaenger", "Verwendungszweck",
+        "Betrag", "Kategorie"
+    ])
+    transform_for_datatable(transactions)
+
+    cats = db_connector.select_categories()
+    global CAT_IDS
+    CAT_IDS = {}
+    for cat in cats:
+        CAT_IDS[cat[1]] = cat[0]  # maps category names to IDs
+
+    return (
+        transactions,  # data
+        [{"Verwendungszweck": {"value": row["Verwendungszweck"]}} for row in transactions],  # tooltip data
+        {
+            "Kategorie": {
+                "options": [
+                    {"label": i[1], "value": i[0]} for i in cats
+                ]
+            }
+        }  # dropdown
+    )
+
+
+@callback(
+    Output("trans_table", "data", allow_duplicate=True),
     Input("cat_button", "n_clicks"),
     State("trans_table", "data"),
-    prevent_initial_call=False
+    prevent_initial_call=True
 )
 def categorize(n_clicks, data):
     global CAT_IDS
@@ -50,16 +86,24 @@ def categorize(n_clicks, data):
     return data
 
 
+@callback(
+    Input("save_button", "n_clicks"),
+    State("trans_table", "data"),
+    prevent_initial_call=True
+)
+def save(n_clicks, data):
+    db_connector.update_categories(data)
+
+
 def transform_for_datatable(transactions):
-    transactions.sort(key=lambda t: t["Wertstellungsdatum"])
+    # transactions.sort(key=lambda t: t["Wertstellungsdatum"])
     for t in transactions:
         t["Datum"] = t["Wertstellungsdatum"].strftime("%a, %d. %b")
         t["Von/An"] = t["Sender"] if t["Betrag"] > 0 else t["Empfaenger"]
         t["Betrag"] /= 100
 
 
-def make_datatable(transactions, cats):
-    transform_for_datatable(transactions)
+def make_datatable():
     money = Format(
         scheme=Scheme.fixed,
         precision=2,
@@ -72,7 +116,7 @@ def make_datatable(transactions, cats):
     )
 
     return dash_table.DataTable(
-        data=transactions,
+        data=[],
         id="trans_table",
         columns=[
             {"id": "Datum", "name": "Datum"},
@@ -95,9 +139,9 @@ def make_datatable(transactions, cats):
                 "textOverflow": "ellipsis"
             },
         ],
-        tooltip_data=[
-            {"Verwendungszweck": {"value": row["Verwendungszweck"]}} for row in transactions
-        ],
+        # tooltip_data=[
+        #     {"Verwendungszweck": {"value": row["Verwendungszweck"]}} for row in transactions
+        # ],
         tooltip_duration=None,
         style_header={"backgroundColor": "rgb(210, 210, 210)", "fontSize": "110%"},
         style_data_conditional=[
@@ -110,33 +154,44 @@ def make_datatable(transactions, cats):
                 "backgroundColor": "rgb(240, 240, 240)"
             }
         ],
-        dropdown={
-            "Kategorie": {
-                "options": [
-                    {"label": i[1], "value": i[0]} for i in cats
-                ]
-            }
-        },
+        # dropdown={
+        #     "Kategorie": {
+        #         "options": [
+        #             {"label": i[1], "value": i[0]} for i in cats
+        #         ]
+        #     }
+        # },
         style_as_list_view=True
     )
 
 
 def main():
-    transactions = db_connector.select("02", "2026", [
-        "Hash", "Wertstellungsdatum", "Sender", "Empfaenger", "Verwendungszweck",
-        "Betrag", "Kategorie"
-    ])
-    cats = db_connector.select_categories()
-    global CAT_IDS
-    CAT_IDS = {}
-    for cat in cats:
-        CAT_IDS[cat[1]] = cat[0]  # maps category names to IDs
-
-    table = make_datatable(transactions, cats)
+    table = make_datatable()
+    months_iso = db_connector.select_months()
+    months_human = [f"{MONTHS[int(month)]} {year}" for year, month in [date.split('-') for date in months_iso]]
 
     app = Dash()
     app.layout = html.Div([
-        dcc.Button("Categorize!", id="cat_button", n_clicks=0),
+        html.Div(
+            [
+                dcc.Dropdown(id="month_dropdown", options=[{"label": h, "value": m} for h, m in zip(months_human, months_iso)],
+                             value=months_iso[-1], clearable=False),
+                html.Div([
+                    # dcc.Button("Reload", id="reload_button", n_clicks=0, style={"marginRight": "10px"}),
+                    dcc.Button("Categorize!", id="cat_button", n_clicks=0, style={"marginRight": "10px"}),
+                    dcc.Button("Save!", id="save_button", n_clicks=0)
+                ]),
+            ],
+            style={
+                "position": "sticky",
+                "top": "5px",
+                "backgroundColor": "white",
+                "padding": "10px",
+                "display": "flex",
+                "justifyContent": "space-between",
+                "zIndex": 99
+            }
+        ),
         table
     ])
     app.run(debug=True)
