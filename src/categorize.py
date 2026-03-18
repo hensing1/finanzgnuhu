@@ -3,7 +3,7 @@ import db_connector
 from enum import Enum
 import locale
 
-from dash import Dash, dash_table, html, dcc, callback, Input, Output
+from dash import Dash, dash_table, html, dcc, callback, Input, Output, State
 from dash.dash_table.Format import Format, Scheme, Group, Symbol
 
 
@@ -26,12 +26,6 @@ MAPPINGS = {
 }
 
 
-class CategoryStatus(Enum):
-    NONE = 0
-    AUTO_CATEGORIZED = 1
-    USER_CATEGORIZED = 2
-
-
 def match_category(transaction):
     for category, map in MAPPINGS.items():
         for field, terms in map.items():
@@ -43,12 +37,15 @@ def match_category(transaction):
 
 @callback(
     Output("trans_table", "data"),
-    [Input("cat_button", "n_clicks"), Input("trans_table", "data")],
+    Input("cat_button", "n_clicks"),
+    State("trans_table", "data"),
     prevent_initial_call=False
 )
 def categorize(n_clicks, data):
     global CAT_IDS
     for t in data:
+        if t["Kategorie"] is not None:
+            continue
         t["Kategorie"] = CAT_IDS[match_category(t)]
     return data
 
@@ -59,7 +56,6 @@ def transform_for_datatable(transactions):
         t["Datum"] = t["Wertstellungsdatum"].strftime("%a, %d. %b")
         t["Von/An"] = t["Sender"] if t["Betrag"] > 0 else t["Empfaenger"]
         t["Betrag"] /= 100
-        t["CatStatus"] = CategoryStatus.NONE.value
 
 
 def make_datatable(transactions, cats):
@@ -88,13 +84,16 @@ def make_datatable(transactions, cats):
         ],
         style_cell={"fontWeight": "bold", "textAlign": "left", "padding": "7px"},
         style_cell_conditional=[
-            {"if": {"column_id": "Betrag"}, "textAlign": "right"},
+            {
+                "if": {"column_id": "Betrag"},
+                "textAlign": "right"
+            },
             {
                 "if": {"column_id": "Verwendungszweck"},
                 "maxWidth": "400px",
                 "overflow": "hidden",
                 "textOverflow": "ellipsis"
-            }
+            },
         ],
         tooltip_data=[
             {"Verwendungszweck": {"value": row["Verwendungszweck"]}} for row in transactions
@@ -109,7 +108,7 @@ def make_datatable(transactions, cats):
             {
                 "if": {"row_index": "odd"},
                 "backgroundColor": "rgb(240, 240, 240)"
-            },
+            }
         ],
         dropdown={
             "Kategorie": {
