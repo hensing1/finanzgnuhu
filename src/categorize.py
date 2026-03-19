@@ -1,8 +1,6 @@
 import db_connector
 
-import locale
-
-from dash import Dash, dash_table, html, dcc, callback, Input, Output, State
+from dash import dash_table, html, dcc, callback, Input, Output, State
 from dash.dash_table.Format import Format, Scheme, Group, Symbol
 
 
@@ -165,13 +163,12 @@ def make_datatable():
     )
 
 
-def main():
+def create_categorizer() -> html.Div:
     table = make_datatable()
     months_iso = db_connector.select_months()
     months_human = [f"{MONTHS[int(month)]} {year}" for year, month in [date.split('-') for date in months_iso]]
 
-    app = Dash()
-    app.layout = html.Div([
+    return html.Div([
         html.Div(
             [
                 dcc.Dropdown(id="month_dropdown", options=[{"label": h, "value": m} for h, m in zip(months_human, months_iso)],
@@ -192,11 +189,5 @@ def main():
                 "zIndex": 99
             }
         ),
-        table
+        table,
     ])
-    app.run(debug=True)
-
-
-if __name__ == "__main__":
-    locale.setlocale(locale.LC_ALL, '')
-    main()
