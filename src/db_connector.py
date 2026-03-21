@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date
 import sqlite3 as sql
 
 SQLITE_FILE = "transaktionen.db"
@@ -6,7 +6,7 @@ SQLITE_FILE = "transaktionen.db"
 
 def str_to_date(datestr):
     year, month, day = datestr.split("-")
-    return datetime(int(year), int(month), int(day))
+    return date(int(year), int(month), int(day))
 
 
 def set_dates(transactions):
@@ -57,7 +57,28 @@ def insert(transactions):
     con.close()
 
 
-def select(month, year, columns=None):
+def select_transactions_as_view(start_date, end_date):
+    with sql.connect(SQLITE_FILE) as con:
+        con.row_factory = sql.Row
+        cur = con.cursor()
+        res = cur.execute("""
+            select  Wertstellungsdatum, Sender, Empfaenger, Verwendungszweck, Betrag,
+                    Einnahme, Kategorien.Name as "KategorieName"
+                from Umsaetze
+                left join Kategorien on Umsaetze.Kategorie = Kategorien.ID
+                where
+                    ? <= Wertstellungsdatum and
+                    Wertstellungsdatum <= ?
+                order by Wertstellungsdatum desc, Tagesnummer desc;
+        """, (start_date, end_date))
+        lines = res.fetchall()
+
+    transactions = [dict(t) for t in lines]
+    convert_sql_types_to_python(transactions)
+    return transactions
+
+
+def select_transactions(month, year, columns=None):
     if not columns:
         columns = ["*"]
 
@@ -74,6 +95,26 @@ def select(month, year, columns=None):
     transactions = [dict(t) for t in lines]
     convert_sql_types_to_python(transactions)
     return transactions
+
+
+def select_latest_date():
+    with sql.connect(SQLITE_FILE) as con:
+        cur = con.cursor()
+        res = cur.execute(
+            "select Wertstellungsdatum "
+            "from Umsaetze order by Wertstellungsdatum desc limit 1;")
+        date = res.fetchone()
+    return str_to_date(date[0])
+
+
+def select_earliest_date():
+    with sql.connect(SQLITE_FILE) as con:
+        cur = con.cursor()
+        res = cur.execute(
+            "select Wertstellungsdatum "
+            "from Umsaetze order by Wertstellungsdatum asc limit 1;")
+        date = res.fetchone()
+    return str_to_date(date[0])
 
 
 def select_all():

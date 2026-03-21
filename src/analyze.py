@@ -1,5 +1,4 @@
 from sys import argv
-from numbers import Number
 import locale
 
 from dash import Dash, html, dcc
@@ -21,52 +20,6 @@ MONTHS = ["Nulluar", "Januar", "Februar", "März", "April", "Mai", "Juni",
 #         self.id = id
 
 
-class SankeyEdge:
-    def __init__(self, source: int, target: int,
-                 value: Number, label: str = ""):
-        self.source_id = source
-        self.target_id = target
-        self.value = value
-        self.label = label
-
-
-class SankeyGraph:
-    def __init__(self):
-        self.node_names = []
-        self.node_ids = dict()
-        self.edges = []
-
-    def add_node(self, name: str):
-        if name not in self.node_ids.keys():
-            self.node_ids[name] = len(self.node_names)
-            self.node_names.append(name)
-        return self.node_ids[name]
-
-    # def find_node(self, name: str):
-    #     return self.nodes[name]
-
-    def add_edge(self, source: str, target: str, value: Number,
-                 label: str = ""):
-        source_id = self.add_node(source)
-        target_id = self.add_node(target)
-        self.edges.append(SankeyEdge(
-            source_id, target_id, value, label
-        ))
-
-    def get_edge_sources(self):
-        return [e.source_id for e in self.edges]
-
-    def get_edge_targets(self):
-        return [e.target_id for e in self.edges]
-
-    def get_edge_values(self):
-        return [e.value for e in self.edges]
-
-    def get_edge_labels(self):
-        return [e.label for e in self.edges]
-
-    def get_node_labels(self):
-        return self.node_names
 
 
 def match_filter(filter, transaction):
@@ -87,33 +40,6 @@ def match_any_filter(transaction):
 
 
 
-def make_sankey(transactions):
-    einnahmen = [t for t in transactions if t["Einnahme"]]
-    ausgaben = [t for t in transactions if not t["Einnahme"]]
-
-    for lnk_target in ausgaben:
-        lnk_target["category"] = match_category(lnk_target)
-
-    g = SankeyGraph()
-
-    for trans in einnahmen:
-        g.add_edge(trans["Sender"], "Girokonto",
-                   trans["Betrag"] / 100,
-                   label=f"{trans["Sender"]} - {trans["Verwendungszweck"]}")
-        # print(f"{trans['Sender']} --{trans['Betrag'] / 100}-> Girokonto ({trans['Verwendungszweck']})")
-
-    for trans in ausgaben:
-        g.add_edge("Girokonto", trans["category"],
-                   abs(trans["Betrag"] / 100),
-                   label=f"{trans["Empfaenger"]} - {trans["Verwendungszweck"]}")
-
-    return go.Sankey(
-        node={"label": g.get_node_labels()},
-        link={
-            "source": g.get_edge_sources(), "target": g.get_edge_targets(),
-            "value": g.get_edge_values(), "label": g.get_edge_labels()
-        }
-    )
 
 
 def ein_aus(transactions):

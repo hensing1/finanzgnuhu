@@ -1,4 +1,4 @@
-import db_connector
+import src.db_connector as db_connector
 
 from dash import dash_table, html, dcc, callback, Input, Output, State
 from dash.dash_table.Format import Format, Scheme, Group, Symbol
@@ -44,7 +44,7 @@ def match_category(transaction):
 )
 def select(month_iso):
     y, m = month_iso.split('-')
-    transactions = db_connector.select(m, y, [
+    transactions = db_connector.select_transactions(m, y, [
         "Hash", "Wertstellungsdatum", "Sender", "Empfaenger", "Verwendungszweck",
         "Betrag", "Kategorie"
     ])

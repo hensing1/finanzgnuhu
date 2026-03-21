@@ -2,7 +2,8 @@ import locale
 
 from dash import Dash, dcc, html
 
-from categorize import create_categorizer
+from src.categorize import create_categorizer
+from src.nanalyze import create_analyzer
 
 
 def main():
@@ -10,7 +11,7 @@ def main():
     app = Dash("Die Nanzen")
     app.layout = html.Div([
         dcc.Tabs([
-            dcc.Tab(label="Analysieren", children=[html.Div()]),
+            dcc.Tab(label="Analysieren", children=[create_analyzer()]),
             dcc.Tab(label="Kategorisieren", children=[create_categorizer()]),
         ])
     ])
