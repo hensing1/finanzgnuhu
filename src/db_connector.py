@@ -21,8 +21,18 @@ def set_dates(transactions):
             t['Buchung'] = str_to_date(t['Buchung'])
 
 
+def set_bools(transactions):
+    if (len(transactions)) == 0:
+        return
+
+    if "Einnahme" in transactions[0].keys():
+        for t in transactions:
+            t["Einnahme"] = t["Einnahme"] == 1
+
+
 def convert_sql_types_to_python(transactions):
     set_dates(transactions)
+    set_bools(transactions)
 
 
 def insert(transactions):

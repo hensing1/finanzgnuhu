@@ -46,7 +46,7 @@ def select(month_iso):
     y, m = month_iso.split('-')
     transactions = db_connector.select_transactions(m, y, [
         "Hash", "Wertstellungsdatum", "Sender", "Empfaenger", "Verwendungszweck",
-        "Betrag", "Kategorie"
+        "Betrag", "Kategorie", "Einnahme"
     ])
     transform_for_datatable(transactions)
 
@@ -117,6 +117,7 @@ def make_datatable():
         data=[],
         id="trans_table",
         columns=[
+            {"id": "Einnahme", "name": "ign"},
             {"id": "Datum", "name": "Datum"},
             {"id": "Von/An", "name": "Von/An"},
             {"id": "Verwendungszweck", "name": "Zweck"},
