@@ -40,11 +40,11 @@ def match_category(transaction):
     Output("trans_table", "data"),
     Output("trans_table", "tooltip_data"),
     Output("trans_table", "dropdown"),
-    Input("month_dropdown", "value"),
+    Input("sankey_range", "start_date"),
+    Input("sankey_range", "end_date"),
 )
-def select(month_iso):
-    y, m = month_iso.split('-')
-    transactions = db_connector.select_transactions(m, y, [
+def select(start_date, end_date):
+    transactions = db_connector.select_transactions(start_date, end_date, [
         "Hash", "Wertstellungsdatum", "Sender", "Empfaenger", "Verwendungszweck",
         "Betrag", "Kategorie", "ignorieren"
     ])
@@ -61,7 +61,8 @@ def select(month_iso):
             "Kategorie": {
                 "options": [
                     {"label": i[1], "value": i[0]} for i in cats
-                ]
+                ],
+                "clearable": False
             }
         }  # dropdown
     )
@@ -83,6 +84,15 @@ def toggle_ignore(_, data, rows):
         tuples.append((new_state, data[row]["Hash"]))
     db_connector.update_ignored(tuples)
     return data, []
+
+
+@callback(
+    Output("ignore_button", "disabled"),
+    Input("trans_table", "selected_rows"),
+    prevent_initial_call=True
+)
+def activate_ignore_button(selected_rows):
+    return len(selected_rows) == 0
 
 
 @callback(
@@ -179,29 +189,40 @@ def make_datatable():
 
 def create_categorizer() -> html.Div:
     table = make_datatable()
-    months_iso = db_connector.select_months()
-    months_human = [f"{MONTHS[int(month)]} {year}" for year, month in [date.split('-') for date in months_iso]]
+    # months_iso = db_connector.select_months()
+    # months_human = [f"{MONTHS[int(month)]} {year}" for year, month in [date.split('-') for date in months_iso]]
 
-    return html.Div([
-        html.Div(
-            [
-                dcc.Dropdown(id="month_dropdown", options=[{"label": h, "value": m} for h, m in zip(months_human, months_iso)],
-                             value=months_iso[-1], clearable=False),
-                html.Div([
-                    dcc.Button("Toggle ignore", id="ignore_button", n_clicks=0, style={"marginRight": "10px"}),
-                    dcc.Button("Categorize!", id="cat_button", n_clicks=0, style={"marginRight": "10px"}),
-                    dcc.Button("Save!", id="save_button", n_clicks=0)
-                ]),
-            ],
-            style={
-                "position": "sticky",
-                "top": "5px",
-                "backgroundColor": "white",
-                "padding": "10px",
-                "display": "flex",
-                "justifyContent": "space-between",
-                "zIndex": 99
-            }
-        ),
-        table,
-    ])
+    return html.Div(
+        [
+            html.Div(  # header with buttons
+                [
+                    # dcc.Dropdown(id="month_dropdown", options=[{"label": h, "value": m} for h, m in zip(months_human, months_iso)],
+                    #              value=months_iso[-1], clearable=False),
+                    dcc.Button("Ignorieren", id="ignore_button", n_clicks=0, disabled=True),
+                    html.Div([
+                        dcc.Button("Kategorisieren", id="cat_button", n_clicks=0, style={"marginRight": "10px"}),
+                        dcc.Button("Speichern", id="save_button", n_clicks=0)
+                    ]),
+                ],
+                style={
+                    "position": "sticky",
+                    "top": "5px",
+                    "backgroundColor": "white",
+                    "padding": "10px",
+                    "display": "flex",
+                    "justifyContent": "space-between",
+                    "zIndex": 99
+                }
+            ),
+            html.Div(
+                [
+                    table,
+                    html.Div([], style={"height": "200px"})  # this exists solely to make space for the dropdown in the bottom-most line
+                ]
+            )
+        ],
+        style={
+            "maxHeight": "calc(100vh - 154px)",  # 100% minus the height of the tab bar and date controls
+            "overflow": "scroll"
+        }
+    )

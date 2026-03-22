@@ -91,7 +91,7 @@ def select_transactions_as_view(start_date, end_date):
     return transactions
 
 
-def select_transactions(month, year, columns=None):
+def select_transactions(start_date, end_date, columns=None):
     if not columns:
         columns = ["*"]
 
@@ -99,10 +99,11 @@ def select_transactions(month, year, columns=None):
         con.row_factory = sql.Row
         cur = con.cursor()
         res = cur.execute(f"""
-            select {', '.join(columns)} from Umsaetze where
-                strftime('%Y', Wertstellungsdatum) = ? and
-                strftime('%m', Wertstellungsdatum) = ?
-                order by Wertstellungsdatum asc, Tagesnummer asc;""", (year, month))
+            select {', '.join(columns)} from Umsaetze
+                where
+                    ? <= Wertstellungsdatum and
+                    Wertstellungsdatum <= ?
+                order by Wertstellungsdatum asc, Tagesnummer asc;""", (start_date, end_date))
         lines = res.fetchall()
 
     transactions = [dict(t) for t in lines]

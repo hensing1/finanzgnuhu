@@ -1,12 +1,11 @@
 import locale
 from datetime import timedelta
 
-from dash import Dash, dcc, html
+from dash import Dash, dcc, html, callback, Input, Output
 
 import src.db_connector as db_connector
-from src.nanalyze import create_analyzer
+from src.analyze import create_analyzer
 from src.categorize import create_categorizer
-# from src.nategorize import create_nategorizer
 
 
 def make_date_picker():
@@ -48,10 +47,9 @@ def main():
     app.layout = html.Div([
         make_date_picker(),
         dcc.Tabs([
-            dcc.Tab(label="Analysieren", children=[create_analyzer()]),
-            dcc.Tab(label="Kategorisieren", children=[create_categorizer()]),
-            # dcc.Tab(label="Kategorisieren v2", children=[create_nategorizer()])
-        ])
+            dcc.Tab(label="Diagramm", children=[create_analyzer()]),
+            dcc.Tab(label="Kategorien", children=[create_categorizer()]),
+        ], value="tab-2")
     ])
 
     app.run(debug=True)

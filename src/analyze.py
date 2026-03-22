@@ -1,79 +1,90 @@
-from sys import argv
-import locale
+import src.db_connector as db_connector
+from src.sankey import SankeyGraph
 
-from dash import Dash, html, dcc
+from datetime import date, timedelta
+
+from dash import dcc, callback, Input, Output, State
+from dash.exceptions import PreventUpdate
 from plotly import graph_objects as go
 
 
-FILTER = [
-    [("Sender", "martin lehmann"), ("Verwendungszweck", "studium plus")],
-    [("Sender", "henning lehmann")],
-    [("Empfaenger", "henning lehmann")],
-]
+def make_sankey(transactions):
+    einnahmen = [t for t in transactions if t["Einnahme"] and not t["ignorieren"]]
+    ausgaben = [t for t in transactions if not t["Einnahme"] and not t["ignorieren"]]
 
-MONTHS = ["Nulluar", "Januar", "Februar", "März", "April", "Mai", "Juni",
-          "Juli", "August", "September", "Oktober", "November", "Dezember"]
+    g = SankeyGraph()
 
-# class SankeyNode:
-#     def __init__(self, label: str, id: int):
-#         self.label = label
-#         self.id = id
+    # Sender -> Girokonto
+    for trans in einnahmen:
+        g.add_edge(trans["Sender"], "Girokonto",
+                   trans["Betrag"] / 100,
+                   label=f"{trans["Sender"]} - {trans["Verwendungszweck"]}")
+        # print(f"{trans['Sender']} --{trans['Betrag'] / 100}-> Girokonto ({trans['Verwendungszweck']})")
 
+    # Girokonto -> Empfänger
+    for trans in ausgaben:
+        g.add_edge("Girokonto", trans["KategorieName"],
+                   abs(trans["Betrag"] / 100),
+                   label=f"{trans["Empfaenger"]} - {trans["Verwendungszweck"]}")
 
-
-
-def match_filter(filter, transaction):
-    for k, v in filter:
-        if transaction[k].lower().find(v) == -1:
-            return False
-    return True
-
-
-def match_any_filter(transaction):
-    for f in FILTER:
-        if match_filter(f, transaction):
-            print(f"Filtered: {transaction['Sender']} --{transaction['Betrag'] / 100}-> {
-                  transaction['Empfaenger']} ({transaction['Verwendungszweck']})")
-            return True
-    return False
+    return go.Sankey(
+        node={"label": g.get_node_labels()},
+        link={
+            "source": g.get_edge_sources(), "target": g.get_edge_targets(),
+            "value": g.get_edge_values(), "label": g.get_edge_labels()
+        }
+    )
 
 
+@callback(
+    Output("sankey_graph", "figure"),
+    Input("sankey_range", "start_date"),
+    Input("sankey_range", "end_date"),
+    Input("save_button", "n_clicks")
+)
+def update_sankey(start_date, end_date, _):
+    if (start_date is None or end_date is None):
+        raise PreventUpdate
+    transactions = db_connector.select_transactions_as_view(start_date, end_date)
+    sankey = make_sankey(transactions)
+    return go.Figure(sankey)
 
 
+@callback(
+    Output("sankey_range", "start_date"),
+    Output("sankey_range", "end_date"),
+    Input("month_prev", "n_clicks"),
+    State("sankey_range", "start_date"),
+    State("sankey_range", "end_date"),
+    prevent_initial_call=True
+)
+def prev_month(_, start_date, end_date):
+    start_date = date.strptime(start_date, "%Y-%m-%d")
+    end_date = date.strptime(end_date, "%Y-%m-%d")
+    earliest = db_connector.select_earliest_date()
+
+    new_start = max(start_date - timedelta(days=30), earliest)
+    new_end = end_date - (start_date - new_start)
+    return new_start, new_end
 
 
-def ein_aus(transactions):
-    sum_ein = sum([t['Betrag'] for t in transactions if t['Einnahme']])
-    sum_aus = sum([abs(t['Betrag']) for t in transactions if not t['Einnahme']])
-    return sum_ein, sum_aus
+@callback(
+    Output("sankey_range", "start_date", allow_duplicate=True),
+    Output("sankey_range", "end_date", allow_duplicate=True),
+    Input("month_next", "n_clicks"),
+    State("sankey_range", "start_date"),
+    State("sankey_range", "end_date"),
+    prevent_initial_call=True
+)
+def next_month(_, start_date, end_date):
+    start_date = date.strptime(start_date, "%Y-%m-%d")
+    end_date = date.strptime(end_date, "%Y-%m-%d")
+    latest = db_connector.select_latest_date()
+
+    new_end = min(end_date + timedelta(days=30), latest)
+    new_start = start_date + (new_end - end_date)
+    return new_start, new_end
 
 
-def main(argv):
-    locale.setlocale(locale.LC_ALL, '')
-    ts = select_all()
-    ts = [t for t in ts if not match_any_filter(t)]
-
-    content = [html.H1("Die Nanzen")]
-
-    for y, m in [(2026, 2), (2026, 1), (2025, 12), (2025, 11), (2025, 10), (2025, 9),
-                 (2025, 8), (2025, 7), (2025, 6), (2025, 5), (2025, 4),
-                 (2025, 3), (2025, 2)]:
-        content.append(html.H2(f"{MONTHS[m]} {y}"))
-        transactions = [t for t in ts
-                        if t['Wertstellungsdatum'].year == y and t['Wertstellungsdatum'].month == m]
-        sankey = make_sankey(transactions)
-        content.append(dcc.Graph(figure=go.Figure(sankey)))
-
-        ein, aus = ein_aus(transactions)
-        content.append(html.P(f"Einnahmen: {locale.format_string('%.2f', ein / 100, grouping=True)}€, "
-                              f"Ausgaben: {locale.format_string('%.2f', aus / 100, grouping=True)}€"))
-
-    app = Dash("Die Nanzen")
-
-    app.layout = html.Div(content)
-
-    app.run(debug=True)
-
-
-if __name__ == "__main__":
-    main(argv)
+def create_analyzer():
+    return dcc.Graph(id="sankey_graph")
