@@ -9,8 +9,8 @@ from plotly import graph_objects as go
 
 
 def make_sankey(transactions):
-    einnahmen = [t for t in transactions if t["Einnahme"]]
-    ausgaben = [t for t in transactions if not t["Einnahme"]]
+    einnahmen = [t for t in transactions if t["Einnahme"] and not t["ignorieren"]]
+    ausgaben = [t for t in transactions if not t["Einnahme"] and not t["ignorieren"]]
 
     g = SankeyGraph()
 

@@ -3,8 +3,8 @@ import locale
 from dash import Dash, dcc, html
 
 from src.nanalyze import create_analyzer
-# from src.categorize import create_categorizer
-from src.nategorize import create_nategorizer
+from src.categorize import create_categorizer
+# from src.nategorize import create_nategorizer
 
 
 def main():
@@ -13,8 +13,8 @@ def main():
     app.layout = html.Div([
         dcc.Tabs([
             dcc.Tab(label="Analysieren", children=[create_analyzer()]),
-            # dcc.Tab(label="Kategorisieren", children=[create_categorizer()]),
-            dcc.Tab(label="Kategorisieren v2", children=[create_nategorizer()])
+            dcc.Tab(label="Kategorisieren", children=[create_categorizer()]),
+            # dcc.Tab(label="Kategorisieren v2", children=[create_nategorizer()])
         ])
     ])
 

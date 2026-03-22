@@ -28,6 +28,9 @@ def set_bools(transactions):
     if "Einnahme" in transactions[0].keys():
         for t in transactions:
             t["Einnahme"] = t["Einnahme"] == 1
+    if "ignorieren" in transactions[0].keys():
+        for t in transactions:
+            t["ignorieren"] = t["ignorieren"] == 1
 
 
 def convert_sql_types_to_python(transactions):
@@ -73,7 +76,7 @@ def select_transactions_as_view(start_date, end_date):
         cur = con.cursor()
         res = cur.execute("""
             select  Wertstellungsdatum, Sender, Empfaenger, Verwendungszweck, Betrag,
-                    Einnahme, Kategorien.Name as "KategorieName"
+                    Einnahme, ignorieren, Kategorien.Name as "KategorieName"
                 from Umsaetze
                 left join Kategorien on Umsaetze.Kategorie = Kategorien.ID
                 where
@@ -168,4 +171,15 @@ def update_categories(entries):
                 set Kategorie = :Kategorie
                 where Hash = :Hash;
         """, entries)
+        con.commit()
+
+
+def update_ignored(tuples):
+    with sql.connect(SQLITE_FILE) as con:
+        cur = con.cursor()
+        cur.executemany("""
+            update Umsaetze
+                set ignorieren = ?
+                where Hash = ?;
+        """, tuples)
         con.commit()

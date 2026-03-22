@@ -37,6 +37,19 @@ def match_category(transaction):
 
 
 def make_grid():
+    locale = """d3.formatLocale({
+        "decimal": ",",
+        "thousands": ".",
+        "grouping": [3],
+        "currency": ["", "€"],
+        "nan": "",
+    })"""
+
+    cats = db_connector.select_categories()
+    cat_id_to_name = {j[0]: j[1] for j in cats}
+    print(cat_id_to_name)  # this works
+    # cat_name_to_id = {i[1]: i[0] for i in cats}
+
     return dag.AgGrid(
         id="trans_grid",
         rowData=[],
@@ -45,10 +58,27 @@ def make_grid():
             {"field": "Datum", "headerName": "Datum"},
             {"field": "Von/An", "headerName": "Von/An"},
             {"field": "Verwendungszweck", "headerName": "Zweck"},
-            # {"field": "Betrag", "headerName": "Betrag", "type": "numeric", "format": money},
-            # {"field": "Kategorie", "headerName": "Kategorie", "presentation": "dropdown",
-            #  "editable": True},
+            {"field": "Betrag", "headerName": "Betrag",
+             "valueFormatter":
+                {"function": f"params.value ? {locale}.format('$,.2f')(params.value) : null"}},
+            {
+                "field": "Kategorie",
+                "headerName": "Kategorie",
+                "editable": True,
+                'cellEditor': 'agRichSelectCellEditor',
+                'cellEditorParams': {
+                    'values': [cat[0] for cat in cats],
+                    "formatValue": {
+                        "function": "return params.context.value_map[params.value];"
+                    },
+                },
+                "valueFormatter": {
+                    "function": "return params.context.value_map[params.value];"
+                }
+                # all this shit does not work I cannot be bothered
+            }
         ],
+        dashGridOptions={"context": {"value_map": cat_id_to_name}}
     )
 
 
@@ -74,11 +104,11 @@ def select(month_iso):
     ])
     transform_for_grid(transactions)
 
-    cats = db_connector.select_categories()
-    global CAT_IDS
-    CAT_IDS = {}
-    for cat in cats:
-        CAT_IDS[cat[1]] = cat[0]  # maps category names to IDs
+    # cats = db_connector.select_categories()
+    # global CAT_IDS
+    # CAT_IDS = {}
+    # for cat in cats:
+    #     CAT_IDS[cat[1]] = cat[0]  # maps category names to IDs
 
     # print(transactions)
 

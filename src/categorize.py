@@ -19,7 +19,7 @@ MAPPINGS = {
         "Verwendungszweck": ["kfz-steuer"]
     },
     "Gesundheit": {"Empfaenger": ["barmer", "apotheke"]},
-    "Abos": {"Verwendungszweck": ["new york times"]}
+    "Abos": {"Verwendungszweck": ["new york times", "ionos"]}
 }
 
 
@@ -46,15 +46,13 @@ def select(month_iso):
     y, m = month_iso.split('-')
     transactions = db_connector.select_transactions(m, y, [
         "Hash", "Wertstellungsdatum", "Sender", "Empfaenger", "Verwendungszweck",
-        "Betrag", "Kategorie", "Einnahme"
+        "Betrag", "Kategorie", "ignorieren"
     ])
     transform_for_datatable(transactions)
 
     cats = db_connector.select_categories()
     global CAT_IDS
-    CAT_IDS = {}
-    for cat in cats:
-        CAT_IDS[cat[1]] = cat[0]  # maps category names to IDs
+    CAT_IDS = {cat[1]: cat[0] for cat in cats}  # maps category names to IDs
 
     return (
         transactions,  # data
@@ -67,6 +65,24 @@ def select(month_iso):
             }
         }  # dropdown
     )
+
+
+@callback(
+    Output("trans_table", "data", allow_duplicate=True),
+    Output("trans_table", "selected_rows"),
+    Input("ignore_button", "n_clicks"),
+    State("trans_table", "data"),
+    State("trans_table", "selected_rows"),
+    prevent_initial_call=True
+)
+def toggle_ignore(_, data, rows):
+    tuples = []
+    for row in rows:
+        new_state = data[row]["ignorieren"] != "True"
+        data[row]["ignorieren"] = str(new_state)
+        tuples.append((new_state, data[row]["Hash"]))
+    db_connector.update_ignored(tuples)
+    return data, []
 
 
 @callback(
@@ -99,6 +115,7 @@ def transform_for_datatable(transactions):
         t["Datum"] = t["Wertstellungsdatum"].strftime("%a, %d. %b")
         t["Von/An"] = t["Sender"] if t["Betrag"] > 0 else t["Empfaenger"]
         t["Betrag"] /= 100
+        t["ignorieren"] = str(t["ignorieren"])
 
 
 def make_datatable():
@@ -117,7 +134,6 @@ def make_datatable():
         data=[],
         id="trans_table",
         columns=[
-            {"id": "Einnahme", "name": "ign"},
             {"id": "Datum", "name": "Datum"},
             {"id": "Von/An", "name": "Von/An"},
             {"id": "Verwendungszweck", "name": "Zweck"},
@@ -138,29 +154,26 @@ def make_datatable():
                 "textOverflow": "ellipsis"
             },
         ],
-        # tooltip_data=[
-        #     {"Verwendungszweck": {"value": row["Verwendungszweck"]}} for row in transactions
-        # ],
         tooltip_duration=None,
-        style_header={"backgroundColor": "rgb(210, 210, 210)", "fontSize": "110%"},
+        style_header={"color": "rgb(49.8% 29.41% 76.86%)",
+                      "backgroundColor": "rgb(245, 245, 245)", "fontSize": "120%"},
         style_data_conditional=[
             {
                 "if": {"filter_query": "{Betrag} > 0"},
                 "color": "green"
             },
+            # {
+            #     "if": {"row_index": "odd"},
+            #     "backgroundColor": "rgb(240, 240, 240)"
+            # },
             {
-                "if": {"row_index": "odd"},
-                "backgroundColor": "rgb(240, 240, 240)"
+                "if": {"filter_query": "{ignorieren} = True"},
+                "backgroundColor": "lightGrey",
+                "color": "rgb(110, 110, 110)"
             }
         ],
-        # dropdown={
-        #     "Kategorie": {
-        #         "options": [
-        #             {"label": i[1], "value": i[0]} for i in cats
-        #         ]
-        #     }
-        # },
-        style_as_list_view=True
+        style_as_list_view=True,
+        row_selectable="multi"
     )
 
 
@@ -175,7 +188,7 @@ def create_categorizer() -> html.Div:
                 dcc.Dropdown(id="month_dropdown", options=[{"label": h, "value": m} for h, m in zip(months_human, months_iso)],
                              value=months_iso[-1], clearable=False),
                 html.Div([
-                    # dcc.Button("Reload", id="reload_button", n_clicks=0, style={"marginRight": "10px"}),
+                    dcc.Button("Toggle ignore", id="ignore_button", n_clicks=0, style={"marginRight": "10px"}),
                     dcc.Button("Categorize!", id="cat_button", n_clicks=0, style={"marginRight": "10px"}),
                     dcc.Button("Save!", id="save_button", n_clicks=0)
                 ]),
