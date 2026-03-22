@@ -183,7 +183,8 @@ def make_datatable():
             }
         ],
         style_as_list_view=True,
-        row_selectable="multi"
+        row_selectable="multi",
+        cell_selectable=False
     )
 
 

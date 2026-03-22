@@ -1,9 +1,7 @@
 import src.db_connector as db_connector
 from src.sankey import SankeyGraph
 
-from datetime import date, timedelta
-
-from dash import dcc, callback, Input, Output, State
+from dash import dcc, callback, Input, Output
 from dash.exceptions import PreventUpdate
 from plotly import graph_objects as go
 
@@ -48,42 +46,6 @@ def update_sankey(start_date, end_date, _):
     transactions = db_connector.select_transactions_as_view(start_date, end_date)
     sankey = make_sankey(transactions)
     return go.Figure(sankey)
-
-
-@callback(
-    Output("sankey_range", "start_date"),
-    Output("sankey_range", "end_date"),
-    Input("month_prev", "n_clicks"),
-    State("sankey_range", "start_date"),
-    State("sankey_range", "end_date"),
-    prevent_initial_call=True
-)
-def prev_month(_, start_date, end_date):
-    start_date = date.strptime(start_date, "%Y-%m-%d")
-    end_date = date.strptime(end_date, "%Y-%m-%d")
-    earliest = db_connector.select_earliest_date()
-
-    new_start = max(start_date - timedelta(days=30), earliest)
-    new_end = end_date - (start_date - new_start)
-    return new_start, new_end
-
-
-@callback(
-    Output("sankey_range", "start_date", allow_duplicate=True),
-    Output("sankey_range", "end_date", allow_duplicate=True),
-    Input("month_next", "n_clicks"),
-    State("sankey_range", "start_date"),
-    State("sankey_range", "end_date"),
-    prevent_initial_call=True
-)
-def next_month(_, start_date, end_date):
-    start_date = date.strptime(start_date, "%Y-%m-%d")
-    end_date = date.strptime(end_date, "%Y-%m-%d")
-    latest = db_connector.select_latest_date()
-
-    new_end = min(end_date + timedelta(days=30), latest)
-    new_start = start_date + (new_end - end_date)
-    return new_start, new_end
 
 
 def create_analyzer():
