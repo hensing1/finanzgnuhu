@@ -5,6 +5,8 @@ from dash import dcc, callback, Input, Output, html
 from dash.exceptions import PreventUpdate
 from plotly import graph_objects as go
 
+import locale
+
 
 def make_sankey(einnahmen, ausgaben):
 
@@ -36,10 +38,12 @@ def make_summary(einnahmen, ausgaben):
     sum_ein = sum([t["Betrag"] for t in einnahmen]) / 100
     sum_aus = abs(sum([t["Betrag"] for t in ausgaben])) / 100
     return [
-        html.P(f"Einnahmen: {sum_ein}€", style={"width": "400px"}),
-        html.P(f"{round(sum_ein - sum_aus, 2)}€",
+        html.P(f"Einnahmen: {locale.currency(sum_ein, grouping=True)}",
+               style={"width": "400px"}),
+        html.P(f"{locale.currency(sum_ein - sum_aus, grouping=True)}",
                style={"color": ("green" if sum_ein > sum_aus else "red")}),
-        html.P(f"Ausgaben: {sum_aus}€", style={"width": "400px"}),
+        html.P(f"Ausgaben: {locale.currency(sum_aus, grouping=True)}",
+               style={"width": "400px"}),
     ]
 
 
