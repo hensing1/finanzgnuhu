@@ -184,3 +184,20 @@ def update_ignored(tuples):
                 where Hash = ?;
         """, tuples)
         con.commit()
+
+
+def select_aggregated_expenses():
+    with sql.connect(SQLITE_FILE) as con:
+        cur = con.cursor()
+        res = cur.execute("""
+            select
+                sum(Betrag),
+                strftime('%Y-%m', Wertstellungsdatum) as 'Monat',
+                Kategorien.Name
+            from Umsaetze
+            left join Kategorien on Umsaetze.Kategorie = Kategorien.ID
+            where not ignorieren and not Einnahme
+            group by Monat, Kategorie;
+        """)
+        lines = res.fetchall()
+    return lines
