@@ -4,4 +4,4 @@ version = "0.1.0"
 description = "die Nanzen"
 readme = "README.md"
 requires-python = ">=3.14"
-dependencies = ["dash", "pandas", "plotly[express]"]
+dependencies = ["dash", "pandas", "plotly[express]", "dash_bootstrap_components"]

@@ -2,6 +2,7 @@ import locale
 from datetime import date, timedelta
 from calendar import monthrange
 
+import dash_bootstrap_components as dbc
 from dash import Dash, dcc, html, callback, Input, Output, State
 
 import src.db_connector as db_connector
@@ -103,7 +104,7 @@ def make_date_picker():
 
 def main():
     locale.setlocale(locale.LC_ALL, '')
-    app = Dash("Die Nanzen")
+    app = Dash(__name__)  # , external_stylesheets=[dbc.themes.BOOTSTRAP])
     app.layout = html.Div([
         make_date_picker(),
         dcc.Tabs([

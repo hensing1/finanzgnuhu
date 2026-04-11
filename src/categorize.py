@@ -1,35 +1,100 @@
 import src.db_connector as db_connector
-from src.cate_editor import make_editor
 
+import dash_bootstrap_components as dbc
 from dash import dash_table, html, dcc, callback, Input, Output, State
 from dash.dash_table.Format import Format, Scheme, Group, Symbol
 
-
-MAPPINGS = {
-    "Essen": {
-        "Empfaenger": ["edeka", "rewe", "frittenwerk", "gastro", "netto", "king of doner",
-                       "merzenich", "mcdonalds", "mensa", "backwerk", "subway", "foodamigos",
-                       "burgerfaktur", "imbiss", "losteria"],
-        "Verwendungszweck": ["Picnic"]
-    },
-    "Sparkonto": {"Empfaenger": ["kleingeld"]},
-    "Bargeld": {"Empfaenger": ["bargeld"]},
-    "Telefon": {"Empfaenger": ["congstar"]},
-    "Auto": {
-        "Empfaenger": ["aral", "a.t.u"],
-        "Verwendungszweck": ["kfz-steuer"]
-    },
-    "Gesundheit": {"Empfaenger": ["barmer", "apotheke"]},
-    "Abos": {"Verwendungszweck": ["new york times", "ionos"]}
-}
+import json
 
 
-MONTHS = ["Nulluar", "Januar", "Februar", "März", "April", "Mai", "Juni",
-          "Juli", "August", "September", "Oktober", "November", "Dezember"]
+CAT_FILE = "data/categories.json"
 
 
-def match_category(transaction):
-    for category, map in MAPPINGS.items():
+def parse_cat_file() -> dict:
+    with open(CAT_FILE, 'r') as file:
+        j = json.load(file)
+    return j
+
+
+def read_cat_file() -> [str]:
+    with open(CAT_FILE, 'r') as file:
+        return file.read()
+
+
+@callback(
+    Output("is_valid", "children"),
+    Output("is_valid", "style"),
+    Output("cat_save_button", "disabled"),
+    Input("edit_area", "value")
+)
+def on_text_changed(text):
+    is_valid_style = {"color": "green", "width": "400px", "display": "inline-block"}
+    try:
+        json.loads(text)
+    except json.JSONDecodeError:
+        is_valid_style["color"] = "fireBrick"
+        return [["❌ ungültiges JSON"], is_valid_style, True]
+    else:
+        return [["✅ gültiges JSON"], is_valid_style, False]
+
+
+@callback(
+    State("edit_area", "value"),
+    Input("cat_save_button", "n_clicks")
+)
+def save_categories(text, _):
+    json.loads(text)
+    with open(CAT_FILE, 'w') as file:
+        file.write(text)
+
+
+@callback(
+    Output("cat_editor_modal", "is_open"),
+    [Input("cat_edit_button", "n_clicks"), Input("cat_save_button", "n_clicks")],
+    [State("cat_editor_modal", "is_open")],
+)
+def toggle_modal(n1, n2, is_open):
+    if n1 or n2:
+        return not is_open
+    return is_open
+
+
+def make_editor():
+    content = read_cat_file()
+    return dbc.Modal(
+        [
+            dbc.ModalHeader(dbc.ModalTitle("Kategorien anpassen"), close_button=True),
+            dbc.ModalBody(
+                html.Div(
+                    [
+                        dcc.Textarea(
+                            id="edit_area",
+                            value=content,
+                            style={
+                                "height": 400,
+                                "minHeight": 200,
+                                "maxHeight": "70vh",
+                                "fontFamily": "monospace, monospace",
+                                "resize": "vertical"
+                            }
+                        ),
+                        html.P(id="is_valid"),
+                    ]
+                ),
+            ),
+            dbc.ModalFooter(
+                dcc.Button("Kategorien speichern", id="cat_save_button", style={"float": "right", "marginTop": "16px"})
+            ),
+        ],
+        id="cat_editor_modal",
+        size="xl",
+        centered=True,
+        is_open=False,
+    )
+
+
+def match_category(transaction, mappings):
+    for category, map in mappings.items():
         for field, terms in map.items():
             for term in terms:
                 if transaction[field].lower().find(term) != -1:
@@ -98,16 +163,20 @@ def activate_ignore_button(selected_rows):
 
 @callback(
     Output("trans_table", "data", allow_duplicate=True),
-    Input("cat_button", "n_clicks"),
     State("trans_table", "data"),
+    Input("cat_button", "n_clicks"),
     prevent_initial_call=True
 )
-def categorize(n_clicks, data):
+def categorize(data, _):
     global CAT_IDS
+    with open(CAT_FILE, 'r') as file:
+        mappings = dict(json.load(file))
     for t in data:
-        if t["Kategorie"] is not None:
+        if t["Kategorie"] != 0:
             continue
-        t["Kategorie"] = CAT_IDS[match_category(t)]
+        c = match_category(t, mappings)
+        print(c)
+        t["Kategorie"] = CAT_IDS[c]
     return data
 
 
@@ -203,6 +272,7 @@ def create_categorizer() -> html.Div:
                     #              value=months_iso[-1], clearable=False),
                     dcc.Button("Ignorieren", id="ignore_button", n_clicks=0, disabled=True),
                     html.Div([
+                        dcc.Button("Kategorie-Pattern bearbeiten", id="cat_edit_button", style={"marginRight": "10px"}),
                         dcc.Button("Kategorisieren", id="cat_button", n_clicks=0, style={"marginRight": "10px"}),
                         dcc.Button("Speichern", id="save_button", n_clicks=0)
                     ]),
