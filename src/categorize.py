@@ -1,4 +1,5 @@
 import src.db_connector as db_connector
+from src.cate_editor import make_editor
 
 from dash import dash_table, html, dcc, callback, Input, Output, State
 from dash.dash_table.Format import Format, Scheme, Group, Symbol
@@ -195,6 +196,7 @@ def create_categorizer() -> html.Div:
 
     return html.Div(
         [
+            make_editor(),
             html.Div(  # header with buttons
                 [
                     # dcc.Dropdown(id="month_dropdown", options=[{"label": h, "value": m} for h, m in zip(months_human, months_iso)],
@@ -218,7 +220,7 @@ def create_categorizer() -> html.Div:
             html.Div(
                 [
                     table,
-                    html.Div([], style={"height": "200px"})  # this exists solely to make space for the dropdown in the bottom-most line
+                    html.Div([], style={"height": "200px"}),  # this exists solely to make space for the dropdown in the bottom-most line
                 ]
             )
         ],

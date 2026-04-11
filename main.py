@@ -109,7 +109,7 @@ def main():
         dcc.Tabs([
             dcc.Tab(label="Diagramm", children=[create_analyzer()]),
             dcc.Tab(label="Kategorien", children=[create_categorizer()]),
-        ], id="tabs")  # , value="tab-2")
+        ], id="tabs", value="tab-2")
     ])
 
     app.run(debug=True)

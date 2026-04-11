@@ -1,7 +1,7 @@
 from datetime import date
 import sqlite3 as sql
 
-SQLITE_FILE = "transaktionen.db"
+SQLITE_FILE = "data/transaktionen.db"
 
 
 def str_to_date(datestr):
