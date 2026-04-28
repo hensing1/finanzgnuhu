@@ -1,12 +1,17 @@
-import argparse
-import csv
+import dash_bootstrap_components as dbc
+from dash import html, dcc, callback, Input, Output, State
 
+import base64
+import csv
 import hashlib
 
+import src.db_connector as db_connector
 
-def parse_ing(filename):
-    with open(filename, "rb") as file:
-        lines = file.read().decode("ISO-8859-1").split("\n")
+
+def parse_ing(bin_str):
+    # with open(filename, "rb") as file:
+    #     lines = file.read().decode("ISO-8859-1").split("\n")
+    lines = bin_str.decode("ISO-8859-1").split("\n")
 
     iban = lines[2].split(";")[1].replace(" ", "")
 
@@ -15,9 +20,10 @@ def parse_ing(filename):
     return list(reader)[::-1], iban
 
 
-def parse_bbb(filename):
-    with open(filename, "r") as file:
-        lines = file.readlines()
+def parse_bbb(bin_str):
+    # with open(filename, "r") as file:
+    #     lines = file.readlines()
+    lines = bin_str.decode("utf-8").split("\n")
 
     lines[0] = lines[0][1:] \
         .replace("Buchungstag", "Buchung") \
@@ -88,28 +94,156 @@ def enrich(transactions, iban):
             transactions[i]["Wertstellungsdatum"])
         transactions[i]["IBAN"] = iban
         transactions[i]["Hash"] = sha256(transactions[i])
-        transactions[i]["Kategorie"] = None
+        transactions[i]["Kategorie"] = 0
+        transactions[i]["ignorieren"] = False
 
 
-def main(filename, bank):
+@callback(
+    Output("new_csv_modal", "is_open"),
+    [Input("new_csv_button", "n_clicks")],
+    [State("new_csv_modal", "is_open")],
+)
+def toggle_modal(n1, is_open):
+    if n1:
+        return not is_open
+    return is_open
+
+
+def parse_csv(bank, csv_content):
     file_parser = {
-        "bbbank": parse_bbb,
-        "ing": parse_ing
+        "BBBank": parse_bbb,
+        "ING": parse_ing
     }[bank]
-    transactions, iban = file_parser(filename)
+    content_type, content_string = csv_content.split(',')
+    decoded = base64.b64decode(content_string)
 
+    transactions, iban = file_parser(decoded)
     enrich(transactions, iban)
 
-    # for line in transactions:
-    #     print(line)
-    insert(transactions)
+    return transactions, iban
 
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description=".csv-Export von der Bank in die Datenbank packen")
-    parser.add_argument("Dateiname")
-    parser.add_argument(
-        "-b", "--bank", choices=["bbbank", "ing"], default="ing")
-    args = parser.parse_args()
-    main(args.Dateiname, args.bank)
+@callback(
+    Output("parsed_csv_summary", "children"),
+    Output("csv_upload_button", "disabled"),
+    Input("bank_selector", "value"),
+    Input("csv_upload", "contents"),
+    State("csv_upload", "filename"),
+    prevent_initial_call=True
+)
+def on_csv_dropped(bank, content, filename):
+    try:
+        transactions, iban = parse_csv(bank, content)
+    except UnicodeDecodeError:
+        return [[
+            html.P(["Datei: ", html.Code(filename)]),
+            html.P(f"Datei kann mit Parser für {bank} nicht dekodiert werden.")],
+            True]
+
+    new_ts = db_connector.num_of_new_transactions(transactions)
+
+    return [
+        [
+            html.P(["Datei: ", html.Code(filename)]),
+            html.P(f"Datei enhält {len(transactions)} Transaktionen für Konto {iban}, "
+                   f"{new_ts} davon sind noch nicht in der Datenbank.")
+        ],
+        new_ts == 0  # csv_upload_button.disabled
+    ]
+
+
+@callback(
+    Output("insert_ok_text", "children"),
+    Output("insert_ok_modal", "is_open"),
+    Output("new_csv_modal", "is_open", allow_duplicate=True),
+    State("bank_selector", "value"),
+    State("csv_upload", "contents"),
+    Input("csv_upload_button", "n_clicks"),
+    prevent_initial_call=True
+)
+def on_csv_upload(bank, content, _):
+    transactions, iban = parse_csv(bank, content)
+    num_inserted = db_connector.insert(transactions)
+    return [[f"{num_inserted} Transaktionen für Konto {iban} eingefügt."], True, False]
+
+
+def create_csv_uploader():
+    return html.Div(
+        [
+            dcc.Button("Neuer Kontoauszug", id="new_csv_button", style={"color": "#5d8030", "borderColor": "#5d8030"}),
+            dbc.Modal(
+                [
+                    dbc.ModalHeader(),
+                    dbc.ModalFooter(
+                        html.P(id="insert_ok_text"),
+                        style={"justify-content": "flex-start"}
+                    )
+                ],
+                id="insert_ok_modal",
+                is_open=False,
+                size="sm",
+                centered=True
+            ),
+            dbc.Modal(
+                [
+                    dbc.ModalHeader(dbc.ModalTitle("Kontoauszug hochladen")),
+                    dbc.ModalBody([
+                        html.P("Bank auswählen:", style={"display": "inline-block"}),
+                        dcc.Dropdown(
+                            ["BBBank", "ING"],
+                            "ING",
+                            id="bank_selector",
+                            clearable=False,
+                            style={"display": "inline-block", "width": "200px", "margin-left": "10px"}
+                        ),
+                        dcc.Upload(
+                            "CSV-Datei auswählen oder hierher ziehen",
+                            id="csv_upload",
+                            accept="text/csv",
+                            style={
+                                'width': '100%',
+                                'height': '60px',
+                                'lineHeight': '60px',
+                                'borderWidth': '1px',
+                                'borderStyle': 'dashed',
+                                'borderRadius': '5px',
+                                'textAlign': 'center',
+                                "cursor": "copy"
+                            },
+                        ),
+                        html.Div(id="parsed_csv_summary")
+                    ]),
+                    dbc.ModalFooter(
+                        dcc.Button("Hochladen", id="csv_upload_button", disabled=True)
+                    ),
+                ],
+                id="new_csv_modal",
+                is_open=False,
+                centered=True
+            )
+        ]
+    )
+
+
+# def main(filename, bank):
+#     file_parser = {
+#         "bbbank": parse_bbb,
+#         "ing": parse_ing
+#     }[bank]
+#     transactions, iban = file_parser(filename)
+#
+#     enrich(transactions, iban)
+#
+#     # for line in transactions:
+#     #     print(line)
+#     insert(transactions)
+#
+#
+# if __name__ == "__main__":
+#     parser = argparse.ArgumentParser(
+#         description=".csv-Export von der Bank in die Datenbank packen")
+#     parser.add_argument("Dateiname")
+#     parser.add_argument(
+#         "-b", "--bank", choices=["bbbank", "ing"], default="ing")
+#     args = parser.parse_args()
+#     main(args.Dateiname, args.bank)

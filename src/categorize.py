@@ -28,7 +28,7 @@ def read_cat_file() -> [str]:
     Input("edit_area", "value")
 )
 def on_text_changed(text):
-    is_valid_style = {"color": "green", "width": "400px", "display": "inline-block"}
+    is_valid_style = {"color": "green", "margin-bottom": 0}
     try:
         json.loads(text)
     except json.JSONDecodeError:
@@ -64,26 +64,22 @@ def make_editor():
     return dbc.Modal(
         [
             dbc.ModalHeader(dbc.ModalTitle("Kategorien anpassen"), close_button=True),
-            dbc.ModalBody(
-                html.Div(
-                    [
-                        dcc.Textarea(
-                            id="edit_area",
-                            value=content,
-                            style={
-                                "height": 400,
-                                "minHeight": 200,
-                                "maxHeight": "70vh",
-                                "fontFamily": "monospace, monospace",
-                                "resize": "vertical"
-                            }
-                        ),
-                        html.P(id="is_valid"),
-                    ]
+            dbc.ModalBody([
+                dcc.Textarea(
+                    id="edit_area",
+                    value=content,
+                    style={
+                        "height": 400,
+                        "minHeight": 200,
+                        "maxHeight": "70vh",
+                        "fontFamily": "monospace, monospace",
+                        "resize": "vertical"
+                    }
                 ),
-            ),
+                html.P(id="is_valid"),
+            ]),
             dbc.ModalFooter(
-                dcc.Button("Kategorien speichern", id="cat_save_button", style={"float": "right", "marginTop": "16px"})
+                dcc.Button("Kategorien speichern", id="cat_save_button", style={"float": "right"})
             ),
         ],
         id="cat_editor_modal",
@@ -175,7 +171,6 @@ def categorize(data, _):
         if t["Kategorie"] != 0:
             continue
         c = match_category(t, mappings)
-        print(c)
         t["Kategorie"] = CAT_IDS[c]
     return data
 
@@ -295,7 +290,7 @@ def create_categorizer() -> html.Div:
             )
         ],
         style={
-            "maxHeight": "calc(100vh - 154px)",  # 100% minus the height of the tab bar and date controls
+            "maxHeight": "calc(100vh - 188px)",  # 100% minus the height of the tab bar and date controls
             "overflow": "scroll"
         }
     )

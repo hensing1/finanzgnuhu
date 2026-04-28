@@ -26,6 +26,7 @@ def make_sankey(einnahmen, ausgaben):
                    label=f"{trans["Empfaenger"]} - {trans["Verwendungszweck"]}")
 
     return go.Sankey(
+        arrangement="snap",
         node={"label": g.get_node_labels()},
         link={
             "source": g.get_edge_sources(), "target": g.get_edge_targets(),
@@ -53,10 +54,11 @@ def make_summary(einnahmen, ausgaben):
     Input("sankey_range", "start_date"),
     Input("sankey_range", "end_date"),
     Input("tabs", "value"),
+    Input("insert_ok_modal", "is_open"),
     Input("save_button", "n_clicks"),
 )
-def update_sankey(start_date, end_date, value, _):
-    if (start_date is None or end_date is None or value != "tab-1"):
+def update_sankey(start_date, end_date, value, insert_popup, _):
+    if (start_date is None or end_date is None or value != "tab-1" or insert_popup):
         raise PreventUpdate
 
     transactions = db_connector.select_transactions_as_view(start_date, end_date)
@@ -65,7 +67,9 @@ def update_sankey(start_date, end_date, value, _):
     ausgaben = [t for t in transactions if not t["Einnahme"] and not t["ignorieren"]]
     sankey = make_sankey(einnahmen, ausgaben)
     summary = make_summary(einnahmen, ausgaben)
-    return go.Figure(sankey), summary
+    fig = go.Figure(sankey)
+    fig.update_layout(font_size=13, height=700)
+    return fig, summary
 
 
 def create_analyzer():
@@ -73,5 +77,8 @@ def create_analyzer():
         html.Div(id="summary_div",
                  style={"display": "flex", "justifyContent": "space-around",
                         "textAlign": "center"}),
-        dcc.Graph(id="sankey_graph")
+        html.Div(
+            [dcc.Graph(id="sankey_graph")],
+            style={"height": "70vh"}
+        )
     ])

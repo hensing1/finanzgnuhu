@@ -2,12 +2,12 @@ import locale
 from datetime import date, timedelta
 from calendar import monthrange
 
-import dash_bootstrap_components as dbc
 from dash import Dash, dcc, html, callback, Input, Output, State
 
 import src.db_connector as db_connector
 from src.analyze import create_analyzer
 from src.categorize import create_categorizer
+from src.parse_csv import create_csv_uploader
 
 
 @callback(
@@ -106,11 +106,12 @@ def main():
     locale.setlocale(locale.LC_ALL, '')
     app = Dash(__name__)  # , external_stylesheets=[dbc.themes.BOOTSTRAP])
     app.layout = html.Div([
+        create_csv_uploader(),
         make_date_picker(),
         dcc.Tabs([
             dcc.Tab(label="Diagramm", children=[create_analyzer()]),
-            dcc.Tab(label="Kategorien", children=[create_categorizer()]),
-        ], id="tabs", value="tab-2")
+            dcc.Tab(label="Transaktionen", children=[create_categorizer()]),
+        ], id="tabs", value="tab-1")
     ])
 
     app.run(debug=True)

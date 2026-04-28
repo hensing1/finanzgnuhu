@@ -38,6 +38,15 @@ def convert_sql_types_to_python(transactions):
     set_bools(transactions)
 
 
+def num_of_new_transactions(transactions):
+    with sql.connect(SQLITE_FILE) as con:
+        cur = con.cursor()
+        res = cur.execute("""
+            select Hash from Umsaetze where Hash in (%s);
+        """ % ", ".join([f"'{t["Hash"]}'" for t in transactions]))
+        return len(transactions) - len(res.fetchall())
+
+
 def insert(transactions):
     con = sql.connect(SQLITE_FILE)
     cur = con.cursor()
@@ -50,24 +59,17 @@ def insert(transactions):
     filtered_transactions = tuple(
         t for t in transactions if t["Hash"] not in excluded)
 
-    ans = ""
-    while ans != "y" and ans != "yes":
-        ans = input(f"Continue to insert {len(filtered_transactions)}"
-                    f" of {len(transactions)} transactions? (y/n): ").lower()
-        if ans == "n" or ans == "no":
-            con.close()
-            return
-
     cur.executemany("""
         insert into Umsaetze values(
             :Hash, :IBAN, :Buchung, :Wertstellungsdatum, :Tagesnummer, :Sender,
             :Empfaenger, :Buchungstext, :Verwendungszweck, :Saldo, :Betrag,
-            :Einnahme, :Kategorie
+            :Einnahme, :Kategorie, :ignorieren
         );
     """, filtered_transactions)
 
     con.commit()
     con.close()
+    return len(filtered_transactions)
 
 
 def select_transactions_as_view(start_date, end_date):
@@ -155,7 +157,7 @@ def select_months():
     with sql.connect(SQLITE_FILE) as con:
         cur = con.cursor()
         res = cur.execute("""
-            select distinct strftime('%Y-%m', Wertstellungsdatum) as Datum
+    select distinct strftime('%Y-%m', Wertstellungsdatum) as Datum
                 from Umsaetze
                 order by Datum asc;
         """)
