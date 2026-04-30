@@ -125,29 +125,41 @@ def parse_csv(bank, csv_content):
 
 @callback(
     Output("parsed_csv_summary", "children"),
+    Output("new_account_div", "style"),
     Output("csv_upload_button", "disabled"),
     Input("bank_selector", "value"),
     Input("csv_upload", "contents"),
     State("csv_upload", "filename"),
+    State("new_account_div", "style"),
     prevent_initial_call=True
 )
-def on_csv_dropped(bank, content, filename):
+def on_csv_dropped(bank, content, filename, new_acc):
     try:
         transactions, iban = parse_csv(bank, content)
     except UnicodeDecodeError:
-        return [[
-            html.P(["Datei: ", html.Code(filename)]),
-            html.P(f"Datei kann mit Parser für {bank} nicht dekodiert werden.")],
-            True]
+        return [
+            [  # csv summary
+                html.P(["Datei: ", html.Code(filename)]),
+                html.P(f"Datei kann mit Parser für {bank} nicht dekodiert werden.")
+            ],
+            new_acc,
+            True
+        ]
 
     new_ts = db_connector.num_of_new_transactions(transactions)
 
+    existing_accs = db_connector.select_accounts()
+    ibans = {acc["IBAN"] for acc in existing_accs}
+    if iban not in ibans:
+        new_acc["display"] = "inherit"  # make dialog for new acc-name visible
+
     return [
-        [
+        [  # csv summary
             html.P(["Datei: ", html.Code(filename)]),
             html.P(f"Datei enhält {len(transactions)} Transaktionen für Konto {iban}, "
                    f"{new_ts} davon sind noch nicht in der Datenbank.")
         ],
+        new_acc,
         new_ts == 0  # csv_upload_button.disabled
     ]
 
@@ -170,7 +182,7 @@ def on_csv_upload(bank, content, _):
 def create_csv_uploader():
     return html.Div(
         [
-            dcc.Button("Neuer Kontoauszug", id="new_csv_button", style={"color": "#5d8030", "borderColor": "#5d8030"}),
+            dcc.Button("Neuer Kontoauszug", id="new_csv_button", style={"background": "var(--Dash-Fill-Interactive-Strong)", "color": "white"}),
             dbc.Modal(
                 [
                     dbc.ModalHeader(),
@@ -201,17 +213,27 @@ def create_csv_uploader():
                             id="csv_upload",
                             accept="text/csv",
                             style={
-                                'width': '100%',
-                                'height': '60px',
-                                'lineHeight': '60px',
-                                'borderWidth': '1px',
-                                'borderStyle': 'dashed',
-                                'borderRadius': '5px',
-                                'textAlign': 'center',
+                                "width": "100%",
+                                "height": "60px",
+                                "lineHeight": "60px",
+                                "borderWidth": "1px",
+                                "borderStyle": "dashed",
+                                "borderRadius": "5px",
+                                "textAlign": "center",
                                 "cursor": "copy"
                             },
                         ),
-                        html.Div(id="parsed_csv_summary")
+                        html.Div(id="parsed_csv_summary"),
+                        html.Div(
+                            id="new_account_div",
+                            children=[
+                                html.P("Name für neues Konto eingeben:"),
+                                dcc.Input(id="new_account_name")
+                            ],
+                            style={
+                                "display": "none"
+                            }
+                        )
                     ]),
                     dbc.ModalFooter(
                         dcc.Button("Hochladen", id="csv_upload_button", disabled=True)

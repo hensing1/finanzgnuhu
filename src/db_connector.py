@@ -145,6 +145,15 @@ def select_all():
     return transactions
 
 
+def select_accounts():
+    with sql.connect(SQLITE_FILE) as con:
+        con.row_factory = sql.Row
+        cur = con.cursor()
+        res = cur.execute("select * from Konten;")
+        lines = res.fetchall()
+    return [dict(acc) for acc in lines]
+
+
 def select_categories():
     with sql.connect(SQLITE_FILE) as con:
         cur = con.cursor()
@@ -157,7 +166,7 @@ def select_months():
     with sql.connect(SQLITE_FILE) as con:
         cur = con.cursor()
         res = cur.execute("""
-    select distinct strftime('%Y-%m', Wertstellungsdatum) as Datum
+            select distinct strftime('%Y-%m', Wertstellungsdatum) as Datum
                 from Umsaetze
                 order by Datum asc;
         """)
