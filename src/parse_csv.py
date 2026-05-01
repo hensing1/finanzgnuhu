@@ -133,7 +133,7 @@ def parse_csv(bank, csv_content):
     State("new_account_div", "style"),
     prevent_initial_call=True
 )
-def on_csv_dropped(bank, content, filename, new_acc):
+def on_csv_dropped(bank, content, filename, new_acc_css):
     try:
         transactions, iban = parse_csv(bank, content)
     except UnicodeDecodeError:
@@ -142,7 +142,7 @@ def on_csv_dropped(bank, content, filename, new_acc):
                 html.P(["Datei: ", html.Code(filename)]),
                 html.P(f"Datei kann mit Parser für {bank} nicht dekodiert werden.")
             ],
-            new_acc,
+            new_acc_css,
             True
         ]
 
@@ -150,8 +150,8 @@ def on_csv_dropped(bank, content, filename, new_acc):
 
     existing_accs = db_connector.select_accounts()
     ibans = {acc["IBAN"] for acc in existing_accs}
-    if iban not in ibans:
-        new_acc["display"] = "inherit"  # make dialog for new acc-name visible
+    # make dialog for new acc-name visible if necessary
+    new_acc_css["display"] = "none" if iban in ibans else "inherit"
 
     return [
         [  # csv summary
@@ -159,7 +159,7 @@ def on_csv_dropped(bank, content, filename, new_acc):
             html.P(f"Datei enhält {len(transactions)} Transaktionen für Konto {iban}, "
                    f"{new_ts} davon sind noch nicht in der Datenbank.")
         ],
-        new_acc,
+        new_acc_css,
         new_ts == 0  # csv_upload_button.disabled
     ]
 
