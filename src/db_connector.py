@@ -48,28 +48,38 @@ def num_of_new_transactions(transactions):
 
 
 def insert(transactions):
-    con = sql.connect(SQLITE_FILE)
-    cur = con.cursor()
-    res = cur.execute("""
-        select Hash from Umsaetze where Hash in (%s);
-    """ % ", ".join([f"'{t["Hash"]}'" for t in transactions]))
+    with sql.connect(SQLITE_FILE) as con:
+        cur = con.cursor()
+        res = cur.execute("""
+            select Hash from Umsaetze where Hash in (%s);
+        """ % ", ".join([f"'{t["Hash"]}'" for t in transactions]))
 
-    excluded = {r[0] for r in res.fetchall()}
+        excluded = {r[0] for r in res.fetchall()}
 
-    filtered_transactions = tuple(
-        t for t in transactions if t["Hash"] not in excluded)
+        filtered_transactions = tuple(
+            t for t in transactions if t["Hash"] not in excluded)
 
-    cur.executemany("""
-        insert into Umsaetze values(
-            :Hash, :IBAN, :Buchung, :Wertstellungsdatum, :Tagesnummer, :Sender,
-            :Empfaenger, :Buchungstext, :Verwendungszweck, :Saldo, :Betrag,
-            :Einnahme, :Kategorie, :ignorieren
-        );
-    """, filtered_transactions)
+        cur.executemany("""
+            insert into Umsaetze values(
+                :Hash, :IBAN, :Buchung, :Wertstellungsdatum, :Tagesnummer, :Sender,
+                :Empfaenger, :Buchungstext, :Verwendungszweck, :Saldo, :Betrag,
+                :Einnahme, :Kategorie, :ignorieren
+            );
+        """, filtered_transactions)
 
-    con.commit()
-    con.close()
+        con.commit()
+
     return len(filtered_transactions)
+
+
+def insert_account(iban, acc_name, bank):
+    with sql.connect(SQLITE_FILE) as con:
+        cur = con.cursor()
+        cur.execute(
+            """insert into Konten values(?, ?, ?, 'Girokonto');""",
+            (iban, acc_name, bank)
+        )
+        con.commit()
 
 
 def select_transactions_as_view(start_date, end_date):

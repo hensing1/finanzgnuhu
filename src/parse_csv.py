@@ -1,11 +1,18 @@
-import dash_bootstrap_components as dbc
-from dash import html, dcc, callback, Input, Output, State
-
 import base64
 import csv
+from enum import Enum
 import hashlib
 
+from dash import html, dcc, callback, Input, Output, State
+from dash.exceptions import PreventUpdate
+import dash_bootstrap_components as dbc
+
 import src.db_connector as db_connector
+
+
+class Bank(Enum):
+    ING = "ING"
+    BBB = "BBBank / Bensberger"
 
 
 def parse_ing(bin_str):
@@ -109,10 +116,10 @@ def toggle_modal(n1, is_open):
     return is_open
 
 
-def parse_csv(bank, csv_content):
+def parse_csv(bank: str, csv_content):
     file_parser = {
-        "BBBank": parse_bbb,
-        "ING": parse_ing
+        Bank.BBB.value: parse_bbb,
+        Bank.ING.value: parse_ing
     }[bank]
     content_type, content_string = csv_content.split(',')
     decoded = base64.b64decode(content_string)
@@ -134,9 +141,12 @@ def parse_csv(bank, csv_content):
     prevent_initial_call=True
 )
 def on_csv_dropped(bank, content, filename, new_acc_css):
+    if content is None:
+        raise PreventUpdate
+
     try:
         transactions, iban = parse_csv(bank, content)
-    except UnicodeDecodeError:
+    except UnicodeDecodeError, KeyError:
         return [
             [  # csv summary
                 html.P(["Datei: ", html.Code(filename)]),
@@ -150,8 +160,10 @@ def on_csv_dropped(bank, content, filename, new_acc_css):
 
     existing_accs = db_connector.select_accounts()
     ibans = {acc["IBAN"] for acc in existing_accs}
+
     # make dialog for new acc-name visible if necessary
-    new_acc_css["display"] = "none" if iban in ibans else "inherit"
+    account_exists: bool = iban in ibans
+    new_acc_css["display"] = "none" if account_exists else "inherit"
 
     return [
         [  # csv summary
@@ -160,8 +172,17 @@ def on_csv_dropped(bank, content, filename, new_acc_css):
                    f"{new_ts} davon sind noch nicht in der Datenbank.")
         ],
         new_acc_css,
-        new_ts == 0  # csv_upload_button.disabled
+        new_ts == 0 or not account_exists  # csv_upload_button.disabled
     ]
+
+
+@callback(
+    Output("csv_upload_button", "disabled", allow_duplicate=True),
+    Input("new_account_name", "value"),
+    prevent_initial_call=True
+)
+def on_new_account_name(name):
+    return name == ""
 
 
 @callback(
@@ -170,13 +191,26 @@ def on_csv_dropped(bank, content, filename, new_acc_css):
     Output("new_csv_modal", "is_open", allow_duplicate=True),
     State("bank_selector", "value"),
     State("csv_upload", "contents"),
+    State("new_account_name", "value"),
     Input("csv_upload_button", "n_clicks"),
     prevent_initial_call=True
 )
-def on_csv_upload(bank, content, _):
+def on_csv_upload(bank, content, new_acc_name, _):
+    ok_text = []
     transactions, iban = parse_csv(bank, content)
+
+    existing_accs = db_connector.select_accounts()
+    ibans = {acc["IBAN"] for acc in existing_accs}
+    if iban not in ibans:
+        db_connector.insert_account(iban, new_acc_name, bank)
+        ok_text += ["Neues Konto angelegt: ", html.I(new_acc_name), ".", html.Br()]
+        acc_name = new_acc_name
+    else:
+        acc_name = next(acc["Name"] for acc in existing_accs if acc["IBAN"] == iban)
+
     num_inserted = db_connector.insert(transactions)
-    return [[f"{num_inserted} Transaktionen für Konto {iban} eingefügt."], True, False]
+    ok_text += [f"{num_inserted} Transaktionen für Konto ", html.I(acc_name), " eingefügt."]
+    return [ok_text, True, False]
 
 
 def create_csv_uploader():
@@ -202,8 +236,8 @@ def create_csv_uploader():
                     dbc.ModalBody([
                         html.P("Bank auswählen:", style={"display": "inline-block"}),
                         dcc.Dropdown(
-                            ["BBBank", "ING"],
-                            "ING",
+                            sorted([b.value for b in Bank]),
+                            Bank.ING.value,
                             id="bank_selector",
                             clearable=False,
                             style={"display": "inline-block", "width": "200px", "margin-left": "10px"}
