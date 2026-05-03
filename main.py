@@ -1,22 +1,31 @@
 import locale
+from pathlib import Path
 
-from dash import Dash, html, dcc
+from dash import Dash
 
-from src.analyze import create_analyzer
-from src.categorize import create_categorizer
-from src.header import create_header
+from definitions import SQLITE_FILE
+from src.db_connector import select_num_transactions
+from src.initialize import initialize_app
+
+
+def make_layout():
+    if select_num_transactions() == 0:
+        from src.hello_layout import create_hello_page
+        return create_hello_page()
+    else:
+        from src.standard_layout import create_standard_layout
+        return create_standard_layout()
 
 
 def main():
     locale.setlocale(locale.LC_ALL, '')
     app = Dash(__name__)  # , external_stylesheets=[dbc.themes.BOOTSTRAP])
-    app.layout = html.Div([
-        create_header(),
-        dcc.Tabs([
-            dcc.Tab(label="Diagramm", children=[create_analyzer()]),
-            dcc.Tab(label="Transaktionen", children=[create_categorizer()]),
-        ], id="tabs", value="tab-1")
-    ])
+
+    # check if app is run for the first time
+    if not Path(SQLITE_FILE).exists():
+        initialize_app()
+
+    app.layout = make_layout
 
     app.run(debug=True)
 

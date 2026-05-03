@@ -1,7 +1,20 @@
 from datetime import date
 import sqlite3 as sql
 
-SQLITE_FILE = "data/transaktionen.db"
+from definitions import PROJECT_ROOT, SQLITE_FILE
+
+
+def create_db():
+    with sql.connect(SQLITE_FILE) as con:
+        cur = con.cursor()
+
+        with open(PROJECT_ROOT / "schema.sql", 'r') as schema_file:
+            for command in schema_file.read().split(';'):
+                cur.execute(command)
+        with open(PROJECT_ROOT / "defaults/categories.sql") as default_file:
+            for command in default_file.read().split(';'):
+                cur.execute(command)
+        con.commit()
 
 
 def str_to_date(datestr):
@@ -123,6 +136,13 @@ def select_transactions(iban, start_date, end_date, columns=None):
     transactions = [dict(t) for t in lines]
     convert_sql_types_to_python(transactions)
     return transactions
+
+
+def select_num_transactions():
+    with sql.connect(SQLITE_FILE) as con:
+        cur = con.cursor()
+        res = cur.execute("select count(*) from Umsaetze;").fetchone()[0]
+    return res
 
 
 def select_latest_date(iban):

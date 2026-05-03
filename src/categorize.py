@@ -1,23 +1,21 @@
-import src.db_connector as db_connector
+import json
 
 import dash_bootstrap_components as dbc
 from dash import dash_table, html, dcc, callback, Input, Output, State
 from dash.dash_table.Format import Format, Scheme, Group, Symbol
 
-import json
-
-
-CAT_FILE = "data/categories.json"
+import src.db_connector as db_connector
+from definitions import CATEGORY_FILE
 
 
 def parse_cat_file() -> dict:
-    with open(CAT_FILE, 'r') as file:
+    with open(CATEGORY_FILE, 'r') as file:
         j = json.load(file)
     return j
 
 
 def read_cat_file() -> [str]:
-    with open(CAT_FILE, 'r') as file:
+    with open(CATEGORY_FILE, 'r') as file:
         return file.read()
 
 
@@ -44,7 +42,7 @@ def on_text_changed(text):
 )
 def save_categories(text, _):
     json.loads(text)
-    with open(CAT_FILE, 'w') as file:
+    with open(CATEGORY_FILE, 'w') as file:
         file.write(text)
 
 
@@ -166,7 +164,7 @@ def activate_ignore_button(selected_rows):
 )
 def categorize(data, _):
     global CAT_IDS
-    with open(CAT_FILE, 'r') as file:
+    with open(CATEGORY_FILE, 'r') as file:
         mappings = dict(json.load(file))
     for t in data:
         if t["Kategorie"] != 0:
