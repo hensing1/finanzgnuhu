@@ -1,11 +1,11 @@
 import base64
 import csv
-from enum import Enum
 import hashlib
+from enum import Enum
 
-from dash import html, dcc, callback, Input, Output, State
-from dash.exceptions import PreventUpdate
 import dash_bootstrap_components as dbc
+from dash import Input, Output, State, callback, dcc, html
+from dash.exceptions import PreventUpdate
 
 import src.db_connector as db_connector
 
@@ -32,13 +32,15 @@ def parse_bbb(bin_str):
     #     lines = file.readlines()
     lines = bin_str.decode("utf-8").split("\n")
 
-    lines[0] = lines[0][1:] \
-        .replace("Buchungstag", "Buchung") \
-        .replace("Valutadatum", "Wertstellungsdatum") \
-        .replace("Name Zahlungsbeteiligter", "Auftraggeber/Empfänger") \
-        .replace("IBAN Auftragskonto", "IBAN") \
-        .replace("Waehrung", "Währung") \
+    lines[0] = (
+        lines[0][1:]
+        .replace("Buchungstag", "Buchung")
+        .replace("Valutadatum", "Wertstellungsdatum")
+        .replace("Name Zahlungsbeteiligter", "Auftraggeber/Empfänger")
+        .replace("IBAN Auftragskonto", "IBAN")
+        .replace("Waehrung", "Währung")
         .replace("Saldo nach Buchung", "Saldo")
+    )
 
     transactions = list(csv.DictReader(lines, delimiter=";"))[::-1]
     return transactions, transactions[0]["IBAN"]
@@ -54,8 +56,15 @@ def to_iso_date(date):
 
 
 def sha256(transaction):
-    id_fields = ['Wertstellungsdatum', 'Auftraggeber/Empfänger',
-                 'Buchungstext', 'Verwendungszweck', 'Saldo', 'Betrag', 'IBAN']
+    id_fields = [
+        "Wertstellungsdatum",
+        "Auftraggeber/Empfänger",
+        "Buchungstext",
+        "Verwendungszweck",
+        "Saldo",
+        "Betrag",
+        "IBAN",
+    ]
 
     id_str = "".join([str(transaction[field]) for field in id_fields])
     h = hashlib.new("sha256")
@@ -84,7 +93,7 @@ def enrich(transactions, iban):
         is_gain = transactions[i]["Betrag"] >= 0
 
         partner = transactions[i]["Auftraggeber/Empfänger"]
-        assert (partner is not None)
+        assert partner is not None
         me = "ich"
         if is_gain:
             transactions[i]["Sender"] = partner
@@ -98,7 +107,8 @@ def enrich(transactions, iban):
         # restliche Felder
         transactions[i]["Buchung"] = to_iso_date(transactions[i]["Buchung"])
         transactions[i]["Wertstellungsdatum"] = to_iso_date(
-            transactions[i]["Wertstellungsdatum"])
+            transactions[i]["Wertstellungsdatum"]
+        )
         transactions[i]["IBAN"] = iban
         transactions[i]["Hash"] = sha256(transactions[i])
         transactions[i]["Kategorie"] = 0
@@ -117,11 +127,8 @@ def toggle_modal(n1, is_open):
 
 
 def parse_csv(bank: str, csv_content):
-    file_parser = {
-        Bank.BBB.value: parse_bbb,
-        Bank.ING.value: parse_ing
-    }[bank]
-    content_type, content_string = csv_content.split(',')
+    file_parser = {Bank.BBB.value: parse_bbb, Bank.ING.value: parse_ing}[bank]
+    content_type, content_string = csv_content.split(",")
     decoded = base64.b64decode(content_string)
 
     transactions, iban = file_parser(decoded)
@@ -138,7 +145,7 @@ def parse_csv(bank: str, csv_content):
     Input("csv_upload", "contents"),
     State("csv_upload", "filename"),
     State("new_account_div", "style"),
-    prevent_initial_call=True
+    prevent_initial_call=True,
 )
 def on_csv_dropped(bank, content, filename, new_acc_css):
     if content is None:
@@ -150,10 +157,10 @@ def on_csv_dropped(bank, content, filename, new_acc_css):
         return [
             [  # csv summary
                 html.P(["Datei: ", html.Code(filename)]),
-                html.P(f"Datei kann mit Parser für {bank} nicht dekodiert werden.")
+                html.P(f"Datei kann mit Parser für {bank} nicht dekodiert werden."),
             ],
             new_acc_css,
-            True
+            True,
         ]
 
     new_ts = db_connector.num_of_new_transactions(transactions)
@@ -168,18 +175,20 @@ def on_csv_dropped(bank, content, filename, new_acc_css):
     return [
         [  # csv summary
             html.P(["Datei: ", html.Code(filename)]),
-            html.P(f"Datei enhält {len(transactions)} Transaktionen für Konto {iban}, "
-                   f"{new_ts} davon sind noch nicht in der Datenbank.")
+            html.P(
+                f"Datei enhält {len(transactions)} Transaktionen für Konto {iban}, "
+                f"{new_ts} davon sind noch nicht in der Datenbank."
+            ),
         ],
         new_acc_css,
-        new_ts == 0 or not account_exists  # csv_upload_button.disabled
+        new_ts == 0 or not account_exists,  # csv_upload_button.disabled
     ]
 
 
 @callback(
     Output("csv_upload_button", "disabled", allow_duplicate=True),
     Input("new_account_name", "value"),
-    prevent_initial_call=True
+    prevent_initial_call=True,
 )
 def on_new_account_name(name):
     return name == ""
@@ -193,7 +202,7 @@ def on_new_account_name(name):
     State("csv_upload", "contents"),
     State("new_account_name", "value"),
     Input("csv_upload_button", "n_clicks"),
-    prevent_initial_call=True
+    prevent_initial_call=True,
 )
 def on_csv_upload(bank, content, new_acc_name, _):
     ok_text = []
@@ -209,74 +218,91 @@ def on_csv_upload(bank, content, new_acc_name, _):
         acc_name = next(acc["Name"] for acc in existing_accs if acc["IBAN"] == iban)
 
     num_inserted = db_connector.insert(transactions)
-    ok_text += [f"{num_inserted} Transaktionen für Konto ", html.I(acc_name), " eingefügt."]
+    ok_text += [
+        f"{num_inserted} Transaktionen für Konto ",
+        html.I(acc_name),
+        " eingefügt.",
+    ]
     return [ok_text, True, False]
 
 
 def create_csv_uploader():
     return html.Div(
         [
-            dcc.Button("Neuer Kontoauszug", id="new_csv_button", style={"background": "var(--Dash-Fill-Interactive-Strong)", "color": "white"}),
+            dcc.Button(
+                "Neuer Kontoauszug",
+                id="new_csv_button",
+                style={
+                    "background": "var(--Dash-Fill-Interactive-Strong)",
+                    "color": "white",
+                },
+            ),
             dbc.Modal(
                 [
                     dbc.ModalHeader(),
                     dbc.ModalFooter(
                         html.P(id="insert_ok_text"),
-                        style={"justify-content": "flex-start"}
-                    )
+                        style={"justify-content": "flex-start"},
+                    ),
                 ],
                 id="insert_ok_modal",
                 is_open=False,
                 size="sm",
-                centered=True
+                centered=True,
             ),
             dbc.Modal(
                 [
                     dbc.ModalHeader(dbc.ModalTitle("Kontoauszug hochladen")),
-                    dbc.ModalBody([
-                        html.P("Bank auswählen:", style={"display": "inline-block"}),
-                        dcc.Dropdown(
-                            sorted([b.value for b in Bank]),
-                            Bank.ING.value,
-                            id="bank_selector",
-                            clearable=False,
-                            style={"display": "inline-block", "width": "200px", "margin-left": "10px"}
-                        ),
-                        dcc.Upload(
-                            "CSV-Datei auswählen oder hierher ziehen",
-                            id="csv_upload",
-                            accept="text/csv",
-                            style={
-                                "width": "100%",
-                                "height": "60px",
-                                "lineHeight": "60px",
-                                "borderWidth": "1px",
-                                "borderStyle": "dashed",
-                                "borderRadius": "5px",
-                                "textAlign": "center",
-                                "cursor": "copy"
-                            },
-                        ),
-                        html.Div(id="parsed_csv_summary"),
-                        html.Div(
-                            id="new_account_div",
-                            children=[
-                                html.P("Name für neues Konto eingeben:"),
-                                dcc.Input(id="new_account_name")
-                            ],
-                            style={
-                                "display": "none"
-                            }
-                        )
-                    ]),
+                    dbc.ModalBody(
+                        [
+                            html.P(
+                                "Bank auswählen:", style={"display": "inline-block"}
+                            ),
+                            dcc.Dropdown(
+                                sorted([b.value for b in Bank]),
+                                Bank.ING.value,
+                                id="bank_selector",
+                                clearable=False,
+                                style={
+                                    "display": "inline-block",
+                                    "width": "200px",
+                                    "margin-left": "10px",
+                                },
+                            ),
+                            dcc.Upload(
+                                "CSV-Datei auswählen oder hierher ziehen",
+                                id="csv_upload",
+                                accept="text/csv",
+                                style={
+                                    "width": "100%",
+                                    "height": "60px",
+                                    "lineHeight": "60px",
+                                    "borderWidth": "1px",
+                                    "borderStyle": "dashed",
+                                    "borderRadius": "5px",
+                                    "textAlign": "center",
+                                    "cursor": "copy",
+                                },
+                            ),
+                            html.Div(id="parsed_csv_summary"),
+                            html.Div(
+                                id="new_account_div",
+                                children=[
+                                    html.P("Name für neues Konto eingeben:"),
+                                    dcc.Input(id="new_account_name"),
+                                ],
+                                style={"display": "none"},
+                            ),
+                        ]
+                    ),
                     dbc.ModalFooter(
                         dcc.Button("Hochladen", id="csv_upload_button", disabled=True)
                     ),
                 ],
                 id="new_csv_modal",
                 is_open=False,
-                centered=True
-            )
+                centered=True,
+            ),
         ]
     )
 

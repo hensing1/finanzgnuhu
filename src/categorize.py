@@ -102,11 +102,12 @@ def match_category(transaction, mappings):
     Output("trans_table", "data"),
     Output("trans_table", "tooltip_data"),
     Output("trans_table", "dropdown"),
+    Input("acc_dropdown", "value"),
     Input("sankey_range", "start_date"),
     Input("sankey_range", "end_date"),
 )
-def select(start_date, end_date):
-    transactions = db_connector.select_transactions(start_date, end_date, [
+def select(iban, start_date, end_date):
+    transactions = db_connector.select_transactions(iban, start_date, end_date, [
         "Hash", "Wertstellungsdatum", "Sender", "Empfaenger", "Verwendungszweck",
         "Betrag", "Kategorie", "ignorieren"
     ])

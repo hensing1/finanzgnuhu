@@ -82,7 +82,7 @@ def insert_account(iban, acc_name, bank):
         con.commit()
 
 
-def select_transactions_as_view(start_date, end_date):
+def select_transactions_as_view(iban, start_date, end_date):
     with sql.connect(SQLITE_FILE) as con:
         con.row_factory = sql.Row
         cur = con.cursor()
@@ -92,10 +92,11 @@ def select_transactions_as_view(start_date, end_date):
                 from Umsaetze
                 left join Kategorien on Umsaetze.Kategorie = Kategorien.ID
                 where
+                    Umsaetze.IBAN = ? and
                     ? <= Wertstellungsdatum and
                     Wertstellungsdatum <= ?
                 order by Wertstellungsdatum desc, Tagesnummer desc;
-        """, (start_date, end_date))
+        """, (iban, start_date, end_date))
         lines = res.fetchall()
 
     transactions = [dict(t) for t in lines]
@@ -103,7 +104,7 @@ def select_transactions_as_view(start_date, end_date):
     return transactions
 
 
-def select_transactions(start_date, end_date, columns=None):
+def select_transactions(iban, start_date, end_date, columns=None):
     if not columns:
         columns = ["*"]
 
@@ -113,9 +114,10 @@ def select_transactions(start_date, end_date, columns=None):
         res = cur.execute(f"""
             select {', '.join(columns)} from Umsaetze
                 where
+                    Umsaetze.IBAN = ? and
                     ? <= Wertstellungsdatum and
                     Wertstellungsdatum <= ?
-                order by Wertstellungsdatum asc, Tagesnummer asc;""", (start_date, end_date))
+                order by Wertstellungsdatum asc, Tagesnummer asc;""", (iban, start_date, end_date))
         lines = res.fetchall()
 
     transactions = [dict(t) for t in lines]
@@ -123,22 +125,22 @@ def select_transactions(start_date, end_date, columns=None):
     return transactions
 
 
-def select_latest_date():
+def select_latest_date(iban):
     with sql.connect(SQLITE_FILE) as con:
         cur = con.cursor()
         res = cur.execute(
-            "select Wertstellungsdatum "
-            "from Umsaetze order by Wertstellungsdatum desc limit 1;")
+            "select Wertstellungsdatum from Umsaetze "
+            "where Umsaetze.IBAN = ? order by Wertstellungsdatum desc limit 1;", (iban,))
         date = res.fetchone()
     return str_to_date(date[0])
 
 
-def select_earliest_date():
+def select_earliest_date(iban):
     with sql.connect(SQLITE_FILE) as con:
         cur = con.cursor()
         res = cur.execute(
-            "select Wertstellungsdatum "
-            "from Umsaetze order by Wertstellungsdatum asc limit 1;")
+            "select Wertstellungsdatum from Umsaetze "
+            "where Umsaetze.IBAN = ? order by Wertstellungsdatum asc limit 1;", (iban,))
         date = res.fetchone()
     return str_to_date(date[0])
 

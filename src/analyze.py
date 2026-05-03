@@ -51,17 +51,18 @@ def make_summary(einnahmen, ausgaben):
 @callback(
     Output("sankey_graph", "figure"),
     Output("summary_div", "children"),
+    Input("acc_dropdown", "value"),
     Input("sankey_range", "start_date"),
     Input("sankey_range", "end_date"),
     Input("tabs", "value"),
-    Input("insert_ok_modal", "is_open"),
+    Input("insert_ok_modal", "is_open"),  # trigger when insert of new transactions is complete
     Input("save_button", "n_clicks"),
 )
-def update_sankey(start_date, end_date, value, insert_popup, _):
-    if (start_date is None or end_date is None or value != "tab-1" or insert_popup):
+def update_sankey(iban, start_date, end_date, tab, insert_popup, _):
+    if (start_date is None or end_date is None or tab != "tab-1" or insert_popup):
         raise PreventUpdate
 
-    transactions = db_connector.select_transactions_as_view(start_date, end_date)
+    transactions = db_connector.select_transactions_as_view(iban, start_date, end_date)
 
     einnahmen = [t for t in transactions if t["Einnahme"] and not t["ignorieren"]]
     ausgaben = [t for t in transactions if not t["Einnahme"] and not t["ignorieren"]]
