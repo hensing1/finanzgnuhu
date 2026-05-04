@@ -1,5 +1,7 @@
 # Finanzgnuhu
 
+<img src="assets/gnuhu.png" width="512">
+
 > Ein Analysetool für die persönlichen Finanzen zum selber hosten.
 
 ## Features
