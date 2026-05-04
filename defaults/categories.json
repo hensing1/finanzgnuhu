@@ -1,10 +1,10 @@
 {
   "Essen": {
-    "Empfaenger": ["edeka", "rewe", "penny", "mcdonalds", "backwerk", "subway", "imbiss"],
+    "Empfaenger": ["edeka", "rewe", "penny", "mcdonalds", "backwerk", "subway", "imbiss"]
   },
   "Auto": {
     "Empfaenger": ["aral", "a.t.u"],
     "Verwendungszweck": ["kfz-steuer"]
   },
-  "Gesundheit": {"Empfaenger": ["apotheke"]},
+  "Gesundheit": {"Empfaenger": ["apotheke"]}
 }
