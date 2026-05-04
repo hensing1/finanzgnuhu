@@ -4,4 +4,10 @@ version = "0.1.0"
 description = "die Nanzen"
 readme = "README.md"
 requires-python = ">=3.14"
-dependencies = ["dash", "pandas", "plotly[express]", "dash_bootstrap_components"]
+dependencies = [
+  "dash<5.0",  # this project uses dash.data_table which will be removed in 5.0.
+               # I use datatable because the API for the newer dash-ag-grid sucks unbelievable ass
+  "pandas",
+  "plotly[express]",
+  "dash_bootstrap_components"
+]
