@@ -15,9 +15,10 @@ def on_dialogue_close(insert_ok_is_open):
 
     # TODO: Das ist irgendwie kacke
     return [
-        "Erste Transaktionen erfolgreich eingefügt!",
-        html.Br(),
-        "Bitte starte die App neu."
+        "Erste Transaktionen erfolgreich eingefügt! Bitte ",
+        html.B("starte die App neu"), " und ",
+        html.B("lade das Browser-Fenster neu"), " mit ",
+        html.Code("Strg+F5"), "."
     ]
 
 
@@ -25,11 +26,11 @@ def create_hello_page():
     return html.Div(
         [
             html.H1("Hi, dies ist dein persönliches Finanz-Analysedings!"),
-            create_csv_uploader(),
+            create_csv_uploader("Einen ersten Kontoauszug hochladen"),
             html.P(id="success_msg")
         ],
         style={
-            "height": "100vh",
+            "height": "70vh",
             "display": "flex",
             "flex-direction": "column",
             "justify-content": "center",

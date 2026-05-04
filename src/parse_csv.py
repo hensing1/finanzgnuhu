@@ -16,8 +16,6 @@ class Bank(Enum):
 
 
 def parse_ing(bin_str):
-    # with open(filename, "rb") as file:
-    #     lines = file.read().decode("ISO-8859-1").split("\n")
     lines = bin_str.decode("ISO-8859-1").split("\n")
 
     iban = lines[2].split(";")[1].replace(" ", "")
@@ -28,8 +26,6 @@ def parse_ing(bin_str):
 
 
 def parse_bbb(bin_str):
-    # with open(filename, "r") as file:
-    #     lines = file.readlines()
     lines = bin_str.decode("utf-8").split("\n")
 
     lines[0] = (
@@ -115,17 +111,6 @@ def enrich(transactions, iban):
         transactions[i]["ignorieren"] = False
 
 
-@callback(
-    Output("new_csv_modal", "is_open"),
-    [Input("new_csv_button", "n_clicks")],
-    [State("new_csv_modal", "is_open")],
-)
-def toggle_modal(n1, is_open):
-    if n1:
-        return not is_open
-    return is_open
-
-
 def parse_csv(bank: str, csv_content):
     file_parser = {Bank.BBB.value: parse_bbb, Bank.ING.value: parse_ing}[bank]
     content_type, content_string = csv_content.split(",")
@@ -138,60 +123,100 @@ def parse_csv(bank: str, csv_content):
 
 
 @callback(
-    Output("parsed_csv_summary", "children"),
-    Output("new_account_div", "style"),
-    Output("csv_upload_button", "disabled"),
+    Output("new_csv_modal", "is_open"),
+    [Input("new_csv_button", "n_clicks")],
+    [State("new_csv_modal", "is_open")],
+)
+def toggle_modal(n1, is_open):
+    if n1:
+        return not is_open
+    return is_open
+
+
+@callback(
+    Output("csv_buffer", "data"),
     Input("bank_selector", "value"),
     Input("csv_upload", "contents"),
-    State("csv_upload", "filename"),
-    State("new_account_div", "style"),
-    prevent_initial_call=True,
+    prevent_initial_call=True
 )
-def on_csv_dropped(bank, content, filename, new_acc_css):
+def parse_csv_callback(bank, content):
     if content is None:
         raise PreventUpdate
 
     try:
         transactions, iban = parse_csv(bank, content)
     except UnicodeDecodeError, KeyError:
-        return [
-            [  # csv summary
-                html.P(["Datei: ", html.Code(filename)]),
-                html.P(f"Datei kann mit Parser für {bank} nicht dekodiert werden."),
-            ],
-            new_acc_css,
-            True,
-        ]
-
-    new_ts = db_connector.num_of_new_transactions(transactions)
+        return dict()
 
     existing_accs = db_connector.select_accounts()
     ibans = {acc["IBAN"] for acc in existing_accs}
+    acc_exists: bool = iban in ibans
+    acc_name = next((acc["Name"] for acc in existing_accs if acc["IBAN"] == iban), "")
 
-    # make dialog for new acc-name visible if necessary
-    account_exists: bool = iban in ibans
-    new_acc_css["display"] = "none" if account_exists else "inherit"
-
-    return [
-        [  # csv summary
-            html.P(["Datei: ", html.Code(filename)]),
-            html.P(
-                f"Datei enhält {len(transactions)} Transaktionen für Konto {iban}, "
-                f"{new_ts} davon sind noch nicht in der Datenbank."
-            ),
-        ],
-        new_acc_css,
-        new_ts == 0 or not account_exists,  # csv_upload_button.disabled
-    ]
+    return {
+        "transactions": transactions,
+        "iban": iban,
+        "num_new_transactions": db_connector.num_of_new_transactions(transactions),
+        "account_exists": acc_exists,
+        "account_name": acc_name
+    }
 
 
 @callback(
-    Output("csv_upload_button", "disabled", allow_duplicate=True),
+    Output("csv_upload_button", "disabled"),
+    Input("csv_buffer", "data"),
     Input("new_account_name", "value"),
-    prevent_initial_call=True,
+    prevent_initial_call=True
 )
-def on_new_account_name(name):
-    return name == ""
+def set_csv_upload_button_disabled(csv_data, acc_name):
+    return \
+        csv_data is None or \
+        len(csv_data) == 0 or \
+        len(csv_data["transactions"]) == 0 or \
+        csv_data["num_new_transactions"] == 0 or \
+        (not csv_data["account_exists"] and (acc_name is None or acc_name == ""))
+
+
+@callback(
+    Output("parsed_csv_summary", "children"),
+    Input("csv_buffer", "data"),
+    State("bank_selector", "value"),
+    State("csv_upload", "filename"),
+    prevent_initial_call=True
+)
+def set_csv_summary(csv_data, bank, filename):
+    summary = [html.P(["Datei: ", html.Code(filename)])]
+
+    if len(csv_data) == 0:
+        summary += [html.P(f"Datei kann mit Parser für {bank} nicht dekodiert werden.")]
+        return summary
+
+    acc_desc = csv_data["account_name"] if csv_data["account_exists"] else csv_data["iban"]
+    info = [
+        f"Die Datei enhält {len(csv_data['transactions'])} Transaktionen "
+        "für Konto ", html.I(acc_desc), "."
+    ]
+    if len(csv_data["transactions"]) > 0:
+        info += [f" Davon sind {csv_data['num_new_transactions']} noch nicht"
+                 " in der Datenbank."]
+
+    summary += [html.P(info)]
+    return summary
+
+
+@callback(
+    Output("new_account_div", "style"),
+    Input("csv_buffer", "data"),
+    State("new_account_div", "style"),
+    prevent_initial_call=True
+)
+def set_new_account_dialog_visible(csv_data, new_acc_css):
+    visible = \
+        len(csv_data) > 0 and \
+        csv_data["num_new_transactions"] > 0 and \
+        not csv_data["account_exists"]
+    new_acc_css["display"] = "inherit" if visible else "none"
+    return new_acc_css
 
 
 @callback(
@@ -226,17 +251,18 @@ def on_csv_upload(bank, content, new_acc_name, _):
     return [ok_text, True, False]
 
 
-def create_csv_uploader():
+def create_csv_uploader(label="Neuer Kontoauszug"):
     return html.Div(
         [
             dcc.Button(
-                "Neuer Kontoauszug",
+                label,
                 id="new_csv_button",
                 style={
                     "background": "var(--Dash-Fill-Interactive-Strong)",
                     "color": "white",
                 },
             ),
+            dcc.Store(id="csv_buffer"),
             dbc.Modal(
                 [
                     dbc.ModalHeader(),
@@ -288,7 +314,7 @@ def create_csv_uploader():
                             html.Div(
                                 id="new_account_div",
                                 children=[
-                                    html.P("Name für neues Konto eingeben:"),
+                                    html.P("Dem neuen Konto einen Namen geben:"),
                                     dcc.Input(id="new_account_name"),
                                 ],
                                 style={"display": "none"},
@@ -305,27 +331,3 @@ def create_csv_uploader():
             ),
         ]
     )
-
-
-# def main(filename, bank):
-#     file_parser = {
-#         "bbbank": parse_bbb,
-#         "ing": parse_ing
-#     }[bank]
-#     transactions, iban = file_parser(filename)
-#
-#     enrich(transactions, iban)
-#
-#     # for line in transactions:
-#     #     print(line)
-#     insert(transactions)
-#
-#
-# if __name__ == "__main__":
-#     parser = argparse.ArgumentParser(
-#         description=".csv-Export von der Bank in die Datenbank packen")
-#     parser.add_argument("Dateiname")
-#     parser.add_argument(
-#         "-b", "--bank", choices=["bbbank", "ing"], default="ing")
-#     args = parser.parse_args()
-#     main(args.Dateiname, args.bank)
