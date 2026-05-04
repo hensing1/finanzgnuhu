@@ -30,22 +30,24 @@
 
 ## Installation
 
-Repo klonen: `git clone git@github.com:hensing1/finanzgnuhu --depth 1`
+Repo klonen:
+```bash
+git clone git@github.com:hensing1/finanzgnuhu --depth 1
+cd finanzgnuhu
+```
 
 ### Abhängigkeiten installieren
 
 Mit uv:
-
 ```bash
 uv sync
 ```
 
 Mit pip:
-
 ```bash
-python -m venv .venv
+python3 -m venv .venv
 . .venv/bin/activate  # bzw. '. .venv/bin/activate.fish' für fish, etc.
-pip install 'dash<5.0' pandas plotly[express] dash_bootstrap_components
+pip3 install 'dash<5.0' pandas plotly[express] dash_bootstrap_components
 ```
 
 ### Ausführen
